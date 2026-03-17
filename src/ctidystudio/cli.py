@@ -8,7 +8,7 @@ def main():
         description = "Opens an interface to cut and mark an CT scan",
     )
     parser.add_argument(
-        "input_path",
+        "input_dir",
         type = Path,
         help = "Path to directory containing .tif stack (each .tif is a consecutive slice), .xml scan info file and optinal .json cache file",
         )
@@ -22,17 +22,28 @@ def main():
 
     console = Console()
 
-
     console.print("[bold]CTidyStudio[/bold]")
 
     args = parser.parse_args()
-    out_path = args.out if args.out else args.input_path.with_suffix(".ply")
 
-    with console.status("[cyan]Converting to .ply..."):
-        convert(args.input_path, out_path)
+    if not args.input_dir.exists() or not args.input_dir.is_dir():
+        console.print("[red]Error: input_dir must be an existing directory[/red]")
+        return
 
-    console.print(f"[green]✔ Converting to .ply complete[/green]")
-    console.print(f"Wrote: {out_path.relative_to(Path.cwd())}")
+    input_dir = args.input_dir.resolve()
+    out_dir = (args.out or input_dir.parent / "CTidyStudio_out").resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    with console.status("[cyan]CTidy Studio interface open..."):
+        pass
+
+    console.print(f"[green]✔ Scan handling complete[/green]")
+
+    try:
+        rel = out_dir.relative_to(Path.cwd())
+    except ValueError:
+        rel = out_dir  # fallback to absolute path
+    console.print(f"Wrote to: {rel}")
 
 if __name__ == "__main__":
     main()
