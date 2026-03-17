@@ -31,7 +31,7 @@ def main():
         return
 
     input_dir = args.input_dir.resolve()
-    out_dir = (args.out or input_dir.parent / "CTidyStudio_out").resolve()
+    out_dir = (args.out or input_dir / "CTidyStudio_out").resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     with console.status("[cyan]CTidy Studio interface open..."):
