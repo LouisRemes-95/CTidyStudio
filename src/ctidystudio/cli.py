@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 from rich.console import Console
+from ctidystudio.data_handling import load_tif_stack
 
 from ctidystudio.viewer import open_ctidy_studio
 
@@ -12,8 +13,14 @@ def main():
     parser.add_argument(
         "input_dir",
         type = Path,
-        help = "Path to directory containing .tif stack (each .tif is a consecutive slice), .xml scan info file and optinal .json cache file",
-        )
+        help = "Path to directory containing .tif stack and optinal .json cache file",
+    )
+    parser.add_argument(
+        "--voxel-size",
+        type = float,
+        default = 1.,
+        help = "Voxel size (expects cubic voxel)"
+    )
     parser.add_argument(
         "-o",
         "--out",
@@ -36,8 +43,10 @@ def main():
     out_dir = (args.out or input_dir / "CTidyStudio_out").resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    scan = load_tif_stack(args.input_dir, args.voxel_size)
+
     with console.status("[cyan]CTidy Studio interface open..."):
-        open_ctidy_studio()
+        open_ctidy_studio(scan)
 
     console.print(f"[green]✔ Scan handling complete[/green]")
 

@@ -8,8 +8,10 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "numpy>=2.4.4",
     "pyside6>=6.10.2",
     "rich>=14.3.3",
+    "tifffile>=2026.3.3",
 ]
 
 [project.scripts]
