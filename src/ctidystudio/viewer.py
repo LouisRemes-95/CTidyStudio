@@ -7,8 +7,8 @@ class CTidyStudio(QMainWindow):
         self.setWindowTitle("CTidyStudio")
         self.resize(1000, 700)
 
-if __name__ == "__main__":
+def open_ctidy_studio():
     app = QApplication(sys.argv)
     window = CTidyStudio()
     window.show()
-    sys.exit(app.exec())
+    return app.exec()

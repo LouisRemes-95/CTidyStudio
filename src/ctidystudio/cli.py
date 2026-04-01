@@ -2,6 +2,8 @@ import argparse
 from pathlib import Path
 from rich.console import Console
 
+from ctidystudio.viewer import open_ctidy_studio
+
 def main():
     parser = argparse.ArgumentParser(
         prog = "CTidyStudio", 
@@ -35,7 +37,7 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     with console.status("[cyan]CTidy Studio interface open..."):
-        pass
+        open_ctidy_studio()
 
     console.print(f"[green]✔ Scan handling complete[/green]")
 
