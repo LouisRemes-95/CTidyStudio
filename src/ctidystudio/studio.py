@@ -1,6 +1,13 @@
 import sys
+from enum import Enum
 from PySide6.QtWidgets import QApplication, QMainWindow
+
 from ctidystudio.data_handling import Scan
+
+class Mode(str, Enum):
+    RESET = "reset"
+    RESUME = "resume"
+    SILENT = "silent"
 
 class CTidyStudio(QMainWindow):
     def __init__(self):

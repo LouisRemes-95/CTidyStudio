@@ -1,23 +1,16 @@
 import argparse
 import logging
-from enum import Enum
 from pathlib import Path
 
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.traceback import install
 
-from ctidystudio.viewer import open_ctidy_studio
+from ctidystudio.studio import run_ctidy_studio, Mode
 from ctidystudio.data_handling import load_tif_stack
 
 
-class Mode(str, Enum):
-    RESET = "reset"
-    RESUME = "resume"
-    SILENT = "silent"
-
-
-class CLIError(Exception):
+class CLIUserError(Exception):
     pass
 
 
@@ -84,7 +77,7 @@ def build_parser() -> RichArgumentParser:
 def resolve_input_dir(path: Path) -> Path:
     path = path.resolve()
     if not path.exists() or not path.is_dir():
-        raise CLIError("input_dir must be an existing directory")
+        raise CLIUserError("input_dir must be an existing directory")
     return path
 
 
@@ -98,24 +91,6 @@ def resolve_output_dir(input_dir: Path, out: Path | None) -> Path:
     return out_dir
 
 
-def run_mode(scan, mode: Mode) -> None:
-    if mode is Mode.RESET:
-        with console.status("[cyan]CTidy Studio interface open..."):
-            open_ctidy_studio(scan)
-
-    elif mode is Mode.RESUME:
-        # TODO: load cached JSON state here
-        with console.status("[cyan]CTidy Studio interface open..."):
-            open_ctidy_studio(scan)
-
-    elif mode is Mode.SILENT:
-        # TODO: apply cached JSON state without opening GUI
-        log.warning("Silent mode is not implemented yet.")
-
-    else:
-        raise CLIError(f"Unsupported mode: {mode}")
-
-
 def main() -> None:
     configure_logging()
     parser = build_parser()
@@ -126,21 +101,20 @@ def main() -> None:
 
     try:
         input_dir = resolve_input_dir(args.input_dir)
-        out_dir = resolve_output_dir(input_dir, args.out)
+        output_dir = resolve_output_dir(input_dir, args.out)
 
-        scan = load_tif_stack(input_dir, args.voxel_size)
-        run_mode(scan, args.mode)
+        run_ctidy_studio(input_dir, output_dir, args.mode, args.voxel_size)
 
         console.print("[green]✔ Scan handling complete[/green]")
 
         try:
-            rel = out_dir.relative_to(Path.cwd())
+            rel = output_dir.relative_to(Path.cwd())
         except ValueError:
-            rel = out_dir
+            rel = output_dir
 
         console.print(f"Wrote to: {rel}")
 
-    except CLIError as e:
+    except CLIUserError as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise SystemExit(1)
 
