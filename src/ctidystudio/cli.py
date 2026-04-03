@@ -1,9 +1,17 @@
 import argparse
 from pathlib import Path
+from enum import Enum
+
 from rich.console import Console
-from ctidystudio.data_handling import load_tif_stack
 
 from ctidystudio.viewer import open_ctidy_studio
+from ctidystudio.data_handling import load_tif_stack
+
+
+class Mode(str, Enum):
+    RESET = "reset"
+    RESUME = "resume"
+    SILENT = "silent"
 
 def main():
     parser = argparse.ArgumentParser(
@@ -22,6 +30,16 @@ def main():
         help = "Voxel size (expects cubic voxel)"
     )
     parser.add_argument(
+        "--mode",
+        choices = [mode.value for mode in Mode],
+        default = "resume",
+        help=(
+        "reset: start fresh in GUI; "
+        "resume: load previous state in GUI; "
+        "silent: apply state without opening GUI"
+        ),
+    )
+    parser.add_argument(
         "-o",
         "--out",
         type = Path,
@@ -35,12 +53,12 @@ def main():
 
     args = parser.parse_args()
 
-    if not args.input_dir.exists() or not args.input_dir.is_dir():
+    input_dir = args.input_dir.resolve()
+    if not input_dir.exists() or not input_dir.is_dir():
         console.print("[red]Error: input_dir must be an existing directory[/red]")
         return
 
-    input_dir = args.input_dir.resolve()
-    out_dir = (args.out or input_dir / "CTidyStudio_out").resolve()
+    out_dir = (args.out or input_dir + "_CTidyStudio_out").resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     scan = load_tif_stack(args.input_dir, args.voxel_size)
