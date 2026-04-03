@@ -10,7 +10,7 @@ from ctidystudio.studio import run_ctidy_studio, Mode
 from ctidystudio.data_handling import load_tif_stack
 
 
-class CLIUserError(Exception):
+class UserError(Exception):
     pass
 
 
@@ -77,7 +77,7 @@ def build_parser() -> RichArgumentParser:
 def resolve_input_dir(path: Path) -> Path:
     path = path.resolve()
     if not path.exists() or not path.is_dir():
-        raise CLIUserError("input_dir must be an existing directory")
+        raise UserError("input_dir must be an existing directory")
     return path
 
 
@@ -105,8 +105,6 @@ def main() -> None:
 
         run_ctidy_studio(input_dir, output_dir, args.mode, args.voxel_size)
 
-        console.print("[green]✔ Scan handling complete[/green]")
-
         try:
             rel = output_dir.relative_to(Path.cwd())
         except ValueError:
@@ -114,7 +112,7 @@ def main() -> None:
 
         console.print(f"Wrote to: {rel}")
 
-    except CLIUserError as e:
+    except UserError as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise SystemExit(1)
 
