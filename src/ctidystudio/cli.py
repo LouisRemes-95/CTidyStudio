@@ -1,31 +1,17 @@
 import argparse
-import logging
 from pathlib import Path
 
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.traceback import install
 
+install(show_locals=True)
+
+from ctidystudio.errors import UserError
 from ctidystudio.studio import run_ctidy_studio, Mode
-from ctidystudio.data_handling import load_tif_stack
-
-
-class UserError(Exception):
-    pass
 
 
 console = Console()
-log = logging.getLogger(__name__)
-
-
-def configure_logging() -> None:
-    install(show_locals=True)
-
-    logging.basicConfig(
-        level=logging.WARNING,
-        format="%(message)s",
-        handlers=[RichHandler()],
-    )
 
 
 class RichArgumentParser(argparse.ArgumentParser):
@@ -92,7 +78,6 @@ def resolve_output_dir(input_dir: Path, out: Path | None) -> Path:
 
 
 def main() -> None:
-    configure_logging()
     parser = build_parser()
 
     console.print("[bold]CTidyStudio[/bold]")
