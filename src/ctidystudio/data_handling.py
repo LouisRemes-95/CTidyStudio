@@ -4,6 +4,7 @@ import tifffile
 
 import numpy as np
 
+
 class Scan:
     def __init__(self, voxel_size: float, data):
         if voxel_size <= 0:
@@ -15,6 +16,7 @@ class Scan:
         if data.ndim != 3:
             raise ValueError(f"data must be 3D (z, y, x), got {data.ndim}D")
         self.data = data
+
 
 def load_tif_stack(path: Path, voxel_size: float) -> Scan:
     files = sorted(path.glob("*.tif"))

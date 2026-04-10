@@ -1,9 +1,11 @@
 import sys
+from pathlib import Path
 from enum import Enum
+
 from PySide6.QtWidgets import QApplication, QMainWindow
 
+from ctidystudio.common import UserError, console
 from ctidystudio.data_handling import load_tif_stack
-from ctidystudio.cli import console
 
 
 class Mode(str, Enum):
@@ -19,8 +21,8 @@ class CTidyStudio(QMainWindow):
         self.resize(1000, 700)
 
 
-def run_ctidy_studio(input_dir, output_dir, mode, voxel_size):
-    with console.satus("[cyan]Loading tif stack..."):
+def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: float) -> int:
+    with console.status("[cyan]Loading tif stack..."):
         scan = load_tif_stack(input_dir, voxel_size)
     console.print("[green]✔ Tif stack loaded[/green]")
 
@@ -36,10 +38,20 @@ def run_ctidy_studio(input_dir, output_dir, mode, voxel_size):
         
     console.print("[cyan]Opening CTidy Studio...[/cyan]")
 
-    console.print("[green]✔ Scan handling complete[/green]")
-
-
     app = QApplication(sys.argv)
     window = CTidyStudio()
     window.show()
-    return app.exec()
+    exit_code = app.exec()
+
+    console.print("[green]✔ Scan handling complete[/green]")
+
+    return exit_code
+
+
+    # TO DO:
+        # try:
+        #     rel = output_dir.relative_to(Path.cwd())
+        # except ValueError:
+        #     rel = output_dir
+
+        # console.print(f"Wrote to: {rel}")

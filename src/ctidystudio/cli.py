@@ -1,17 +1,13 @@
+import sys
 import argparse
 from pathlib import Path
 
-from rich.console import Console
-from rich.logging import RichHandler
 from rich.traceback import install
 
 install(show_locals=True)
 
-from ctidystudio.errors import UserError
+from ctidystudio.common import UserError, console
 from ctidystudio.studio import run_ctidy_studio, Mode
-
-
-console = Console()
 
 
 class RichArgumentParser(argparse.ArgumentParser):
@@ -77,7 +73,7 @@ def resolve_output_dir(input_dir: Path, out: Path | None) -> Path:
     return out_dir
 
 
-def main() -> None:
+def main() -> int:
     parser = build_parser()
 
     console.print("[bold]CTidyStudio[/bold]")
@@ -88,14 +84,7 @@ def main() -> None:
         input_dir = resolve_input_dir(args.input_dir)
         output_dir = resolve_output_dir(input_dir, args.out)
 
-        run_ctidy_studio(input_dir, output_dir, args.mode, args.voxel_size)
-
-        try:
-            rel = output_dir.relative_to(Path.cwd())
-        except ValueError:
-            rel = output_dir
-
-        console.print(f"Wrote to: {rel}")
+        return run_ctidy_studio(input_dir, output_dir, args.mode, args.voxel_size)
 
     except UserError as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
@@ -103,4 +92,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
