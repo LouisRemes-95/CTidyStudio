@@ -12,7 +12,7 @@ from ctidystudio.studio import run_ctidy_studio, Mode
 
 class RichArgumentParser(argparse.ArgumentParser):
     def error(self, message):
-        console.print(f"[bold red]Argument error:[/bold red] {message}\n")
+        console.print(f"[bold red]✖ Argument error:[/bold red] {message}\n")
         self.print_help()
         raise SystemExit(2)
 
@@ -87,7 +87,7 @@ def main() -> int:
         return run_ctidy_studio(input_dir, output_dir, args.mode, args.voxel_size)
 
     except UserError as e:
-        console.print(f"[bold red]Error:[/bold red] {e}")
+        console.print(f"[bold red]✖ Error:[/bold red] {e}")
         raise SystemExit(1)
 
 

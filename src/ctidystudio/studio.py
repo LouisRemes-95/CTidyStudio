@@ -3,6 +3,8 @@ from pathlib import Path
 from enum import Enum
 
 from PySide6.QtWidgets import QApplication, QMainWindow
+from rich.live import Live
+from rich.text import Text
 
 from ctidystudio.common import UserError, console
 from ctidystudio.data_handling import load_tif_stack
@@ -36,14 +38,15 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
         case _:
             raise ValueError(f"Unknown mode: {mode}")
         
-    console.print("[cyan]Opening CTidy Studio...[/cyan]")
+    app = QApplication.instance() or QApplication(sys.argv)
+        
+    with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
+        window = CTidyStudio()
+        window.show()
+        exit_code = app.exec()
 
-    app = QApplication(sys.argv)
-    window = CTidyStudio()
-    window.show()
-    exit_code = app.exec()
-
-    console.print("[green]✔ Scan handling complete[/green]")
+    if exit_code == 0:
+        console.print("[green]✔ Scan handling complete[/green]")
 
     return exit_code
 
@@ -54,4 +57,4 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
         # except ValueError:
         #     rel = output_dir
 
-        # console.print(f"Wrote to: {rel}")
+        # console.print(f"💾 Wrote to: {rel}")
