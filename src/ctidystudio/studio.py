@@ -98,7 +98,7 @@ class SliceView(QGraphicsView):
         self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
 
 
-    def set_image(self, image: np.ndarray):
+    def set_image(self, image: np.ndarray, fit : bool =False):
         if image.ndim != 2:
             raise ValueError("Expected a 2D array")
         
@@ -119,16 +119,16 @@ class SliceView(QGraphicsView):
 
         self._pixmap_item.setPixmap(pixmap)
 
+        if fit:
+            self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
+
     def fit_image(self):
         self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
         self._zoom = 1.0
 
     def showEvent(self, event):
         super().showEvent(event)
-
-        self.fit_image()
-
-    def fit_image(self):
+        
         self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
 
     def paintEvent(self, event):
@@ -249,8 +249,8 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
         
     with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
         window = CTidyStudio(scan)
-        window.top_slice_view.set_image(scan.data[:,:,1])
-        window.bot_slice_view.set_image(scan.data[:,:,100])
+        window.top_slice_view.set_image(scan.data[:,:,1], True)
+        window.bot_slice_view.set_image(scan.data[:,:,100], True)
         window.show()
         exit_code = app.exec()
 
