@@ -3,7 +3,7 @@ from pathlib import Path
 from enum import Enum
 
 import numpy as np
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QPoint
 from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QWidget, QHBoxLayout, QVBoxLayout
 from PySide6.QtGui import QImage, QPixmap
 from rich.live import Live
@@ -47,6 +47,7 @@ class CTidyStudio(QMainWindow):
         main_layout.addWidget(left_container, 2)
         main_layout.addWidget(right_panel, 1)
 
+
 class SliceView(QGraphicsView):
     def __init__(self):
         super().__init__()
@@ -56,6 +57,14 @@ class SliceView(QGraphicsView):
 
         self._pixmap_item = QGraphicsPixmapItem()
         self.scene.addItem(self._pixmap_item)
+
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        self.setDragMode(QGraphicsView.NoDrag)
+
+        self._panning = False
+        self._pan_start = QPoint()
 
     def set_image(self, image: np.ndarray):
         if image.ndim != 2:
@@ -77,6 +86,42 @@ class SliceView(QGraphicsView):
         pixmap = QPixmap.fromImage(qimage)
 
         self._pixmap_item.setPixmap(pixmap)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.RightButton:
+            self._panning = True
+            self._pan_start = event.pos()
+            event.accept()
+            return
+
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._panning:
+            delta = event.pos() - self._pan_start
+            self._pan_start = event.pos()
+
+            self.horizontalScrollBar().setValue(
+                self.horizontalScrollBar().value() - delta.x()
+            )
+            self.verticalScrollBar().setValue(
+                self.verticalScrollBar().value() - delta.y()
+            )
+
+            event.accept()
+            return
+
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.RightButton:
+            self._panning = False
+            event.accept()
+            return
+
+        super().mouseReleaseEvent(event)
+
+    
 
 
 
@@ -101,7 +146,7 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
     with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
         window = CTidyStudio()
         window.top_slice_view.set_image(scan.data[:,:,1])
-        window.bot_slice_view.set_image(scan.data[:,:,50])
+        window.bot_slice_view.set_image(scan.data[:,:,100])
         window.show()
         exit_code = app.exec()
 
