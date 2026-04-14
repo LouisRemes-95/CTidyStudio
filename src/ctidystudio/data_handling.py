@@ -17,6 +17,10 @@ class Scan:
             raise ValueError(f"data must be 3D (z, y, x), got {data.ndim}D")
         self.data = data
 
+    def quantization_to_uint8(self):
+        data = self.data
+        self.data = ((data - data.min()) / (data.max() - data.min()) * 255).astype(np.uint8)
+
 
 def load_tif_stack(path: Path, voxel_size: float) -> Scan:
     files = sorted(path.glob("*.tif"))

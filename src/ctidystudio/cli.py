@@ -32,7 +32,7 @@ def build_parser() -> RichArgumentParser:
         "--voxel-size",
         type=float,
         default=1.0,
-        help="Voxel size for cubic voxels",
+        help="Voxel size for cubic voxels in [mm]",
     )
     parser.add_argument(
         "--mode",
