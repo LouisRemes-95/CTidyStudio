@@ -119,11 +119,17 @@ class SliceView(QGraphicsView):
 
         self._pixmap_item.setPixmap(pixmap)
 
+    def fit_image(self):
+        self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
+        self._zoom = 1.0
+
     def showEvent(self, event):
         super().showEvent(event)
 
+        self.fit_image()
+
+    def fit_image(self):
         self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
-        self._zoom = 1.0
 
     def paintEvent(self, event):
         # Paints the legends
@@ -208,13 +214,18 @@ class SliceView(QGraphicsView):
 
     def wheelEvent(self, event):
         factor = 1.15
-
         if event.angleDelta().y() < 0:
-            factor = 1/factor
+            factor = 1 / factor
 
-        factor = max(factor, 1.0 / self._zoom)
+        pixmap = self._pixmap_item.pixmap()
+        if pixmap.isNull():
+            return
 
-        self._zoom *= factor
+        fit_scale = min(self.viewport().width() / pixmap.width(), self.viewport().height() / pixmap.height()) / self.transform().m11()
+        fit_scale = min(fit_scale, 1)
+
+        factor = max(factor, fit_scale)
+
         self.scale(factor, factor)
 
 
