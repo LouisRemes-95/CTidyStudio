@@ -3,7 +3,7 @@ from pathlib import Path
 from enum import Enum
 
 import numpy as np
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt, QPoint, QTimer
 from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QWidget, QHBoxLayout, QVBoxLayout
 from PySide6.QtGui import QImage, QPixmap
 from rich.live import Live
@@ -57,6 +57,7 @@ class SliceView(QGraphicsView):
 
         self._pixmap_item = QGraphicsPixmapItem()
         self.scene.addItem(self._pixmap_item)
+        self.scene.setSceneRect(self._pixmap_item.boundingRect())
 
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -65,6 +66,10 @@ class SliceView(QGraphicsView):
 
         self._panning = False
         self._pan_start = QPoint()
+
+        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
+
 
     def set_image(self, image: np.ndarray):
         if image.ndim != 2:
@@ -86,6 +91,12 @@ class SliceView(QGraphicsView):
         pixmap = QPixmap.fromImage(qimage)
 
         self._pixmap_item.setPixmap(pixmap)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+
+        self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
+        self._zoom = 1.0
 
     def mousePressEvent(self, event):
         if event.button() == Qt.RightButton:
@@ -121,8 +132,16 @@ class SliceView(QGraphicsView):
 
         super().mouseReleaseEvent(event)
 
-    
+    def wheelEvent(self, event):
+        factor = 1.15
 
+        if event.angleDelta().y() < 0:
+            factor = 1/factor
+
+        factor = max(factor, 1.0 / self._zoom)
+
+        self._zoom *= factor
+        self.scale(factor, factor)
 
 
 def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: float) -> int:
