@@ -1,16 +1,40 @@
 import sys
 from pathlib import Path
 from enum import Enum
+import math
 
 import numpy as np
-from PySide6.QtCore import Qt, QPoint, QTimer
-from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QWidget, QHBoxLayout, QVBoxLayout
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtCore import Qt, QPoint
+from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QWidget, QHBoxLayout, QVBoxLayout, QGraphicsLineItem
+from PySide6.QtGui import QImage, QPixmap, QPen, QPainter, QPainterPath, QFont
 from rich.live import Live
 from rich.text import Text
 
 from ctidystudio.common import UserError, console
-from ctidystudio.data_handling import load_tif_stack
+from ctidystudio.data_handling import load_tif_stack, Scan
+
+SI_PREFIXES = {
+    -12: "p",   # pico
+    -9:  "n",   # nano
+    -6:  "µ",   # micro
+    -3:  "m",   # milli
+     0:  "",    # base
+     3:  "k",   # kilo
+     6:  "M",   # mega
+     9:  "G",   # giga
+}
+
+def _to_SI(x, unit="m"):
+    if x == 0:
+        return f"0 {unit}"
+
+    exp = int(math.floor(math.log10(abs(x))))
+    exp3 = (exp // 3) * 3
+
+    prefix = SI_PREFIXES.get(exp3, "")
+    value = x / (10 ** exp3)
+
+    return f"{value:.2f} {prefix}{unit}"
 
 
 class Mode(str, Enum):
@@ -20,17 +44,18 @@ class Mode(str, Enum):
 
 
 class CTidyStudio(QMainWindow):
-    def __init__(self):
+    def __init__(self, scan: Scan):
         super().__init__()
+
+        self.scan = scan
         self._build_ui()
 
     def _build_ui(self):
         self.setWindowTitle("CTidyStudio")
         self.resize(1000, 700)
 
-
-        self.top_slice_view = SliceView()
-        self.bot_slice_view = SliceView()
+        self.top_slice_view = SliceView(self.scan.voxel_size)
+        self.bot_slice_view = SliceView(self.scan.voxel_size)
         right_panel = QWidget()
 
         main_container = QWidget()
@@ -49,8 +74,10 @@ class CTidyStudio(QMainWindow):
 
 
 class SliceView(QGraphicsView):
-    def __init__(self):
+    def __init__(self, voxel_size: int):
         super().__init__()
+
+        self._voxel_size = voxel_size
 
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
@@ -98,6 +125,52 @@ class SliceView(QGraphicsView):
         self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
         self._zoom = 1.0
 
+    def paintEvent(self, event):
+        # Paints the legends
+        super().paintEvent(event)
+
+        painter = QPainter(self.viewport())
+
+        # scale line
+        w = self.viewport().width()
+        h = self.viewport().height()
+
+        bar_width = int(w * 0.1)
+        bar_height = int(h * 0.015)
+
+        margin = int(w * 0.05)
+
+        x = w - margin - bar_width
+        y = h - margin - bar_height
+
+        painter.fillRect(x, y, bar_width, bar_height, Qt.white)
+
+        pen = QPen(Qt.black, 1)
+        painter.setPen(pen)
+        painter.drawRect(x, y, bar_width, bar_height)
+
+        # scale text
+
+        real_size = self._voxel_size / 1000 * bar_width / self.transform().m11()
+        text = _to_SI(real_size)
+
+        painter.setFont(QFont("", bar_width/4))
+        fm = painter.fontMetrics()
+        text_width = fm.horizontalAdvance(text)
+
+        text_x = x + (bar_width - text_width) // 2
+        text_y = y - bar_height*2
+
+        # black outline
+        painter.setPen(Qt.black)
+        painter.drawText(text_x - 1, text_y, text)
+        painter.drawText(text_x + 1, text_y, text)
+        painter.drawText(text_x, text_y - 1, text)
+        painter.drawText(text_x, text_y + 1, text)
+
+        painter.setPen(Qt.white)
+        painter.drawText(text_x, text_y, text)
+
     def mousePressEvent(self, event):
         if event.button() == Qt.RightButton:
             self._panning = True
@@ -120,6 +193,7 @@ class SliceView(QGraphicsView):
             )
 
             event.accept()
+            self.viewport().update()
             return
 
         super().mouseMoveEvent(event)
@@ -163,7 +237,7 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
     app = QApplication.instance() or QApplication(sys.argv)
         
     with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
-        window = CTidyStudio()
+        window = CTidyStudio(scan)
         window.top_slice_view.set_image(scan.data[:,:,1])
         window.bot_slice_view.set_image(scan.data[:,:,100])
         window.show()
@@ -173,8 +247,6 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
         console.print("[green]✔ Scan handling complete[/green]")
 
     return exit_code
-
-
 
 
 
