@@ -5,8 +5,8 @@ import math
 
 import numpy as np
 from PySide6.QtCore import Qt, QPoint
-from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QWidget, QHBoxLayout, QVBoxLayout, QGraphicsLineItem
-from PySide6.QtGui import QImage, QPixmap, QPen, QPainter, QPainterPath, QFont
+from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QWidget, QHBoxLayout, QVBoxLayout, QPushButton
+from PySide6.QtGui import QImage, QPixmap, QPen, QPainter, QFont
 from rich.live import Live
 from rich.text import Text
 
@@ -102,6 +102,15 @@ class SliceView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
 
+        self._rotate_btn = QPushButton("⟳", self.viewport())
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        
+        self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
+    
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
 
     def set_image(self, image: np.ndarray, fit : bool =False):
         if image.ndim != 2:
@@ -134,16 +143,11 @@ class SliceView(QGraphicsView):
         self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
         self._zoom = 1.0
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        
-        self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
+    def drawForeground(self, painter, rect):
+        super().drawForeground(painter, rect)
 
-    def paintEvent(self, event):
-        # Paints the legends
-        super().paintEvent(event)
-
-        painter = QPainter(self.viewport())
+        painter.save()
+        painter.resetTransform()  # keep overlay fixed to the viewport
 
         # scale line
         w = self.viewport().width()
@@ -157,33 +161,37 @@ class SliceView(QGraphicsView):
         x = w - margin - bar_width
         y = h - margin - bar_height
 
-        painter.fillRect(x, y, bar_width, bar_height, Qt.white)
+        painter.fillRect(x, y, bar_width, bar_height, Qt.GlobalColor.white)
 
-        pen = QPen(Qt.black, 1)
+        pen = QPen(Qt.GlobalColor.black, 1)
         painter.setPen(pen)
         painter.drawRect(x, y, bar_width, bar_height)
 
         # scale text
-
         real_size = self._voxel_size / 1000 * bar_width / self.transform().m11()
         text = _to_SI(real_size)
 
-        painter.setFont(QFont("", bar_width/4))
+        font = QFont()
+        font.setPointSizeF(bar_width / 4)
+        painter.setFont(font)
+
         fm = painter.fontMetrics()
         text_width = fm.horizontalAdvance(text)
 
         text_x = x + (bar_width - text_width) // 2
-        text_y = y - bar_height*2
+        text_y = y - bar_height * 2
 
         # black outline
-        painter.setPen(Qt.black)
+        painter.setPen(Qt.GlobalColor.black)
         painter.drawText(text_x - 1, text_y, text)
         painter.drawText(text_x + 1, text_y, text)
         painter.drawText(text_x, text_y - 1, text)
         painter.drawText(text_x, text_y + 1, text)
 
-        painter.setPen(Qt.white)
+        painter.setPen(Qt.GlobalColor.white)
         painter.drawText(text_x, text_y, text)
+
+        painter.restore()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.RightButton:
