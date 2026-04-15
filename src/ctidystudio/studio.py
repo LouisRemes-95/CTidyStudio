@@ -24,6 +24,10 @@ SI_PREFIXES = {
      9:  "G",   # giga
 }
 
+class Direction_pair(str, Enum):
+    XY = "XY"
+    YZ = "YZ"
+
 def _to_SI(x, unit="m"):
     if x == 0:
         return f"0 {unit}"
@@ -54,8 +58,8 @@ class CTidyStudio(QMainWindow):
         self.setWindowTitle("CTidyStudio")
         self.resize(1000, 700)
 
-        self.top_slice_view = SliceView(self.scan.voxel_size)
-        self.bot_slice_view = SliceView(self.scan.voxel_size)
+        self.top_slice_view = SliceView(self.scan.voxel_size, Direction_pair.XY)
+        self.bot_slice_view = SliceView(self.scan.voxel_size, Direction_pair.YZ)
         right_panel = QWidget()
 
         main_container = QWidget()
@@ -74,10 +78,11 @@ class CTidyStudio(QMainWindow):
 
 
 class SliceView(QGraphicsView):
-    def __init__(self, voxel_size: int):
+    def __init__(self, voxel_size: int, direction_pair: Direction_pair):
         super().__init__()
 
         self._voxel_size = voxel_size
+        self._direction_pair = direction_pair
 
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
@@ -105,10 +110,13 @@ class SliceView(QGraphicsView):
         if image.dtype != np.uint8:
             raise ValueError("Expected uint8 image")
 
-        image = np.ascontiguousarray(image)
+        if self._direction_pair == Direction_pair.XY:
+            image = image.T
+
+        image = np.ascontiguousarray(np.flipud(image))
         
         qimage = QImage(
-            image.data,
+            image,
             image.shape[1],
             image.shape[0],
             image.shape[1],
@@ -249,8 +257,9 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
         
     with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
         window = CTidyStudio(scan)
-        window.top_slice_view.set_image(scan.data[:,:,1], True)
-        window.bot_slice_view.set_image(scan.data[:,:,100], True)
+        scan.data[:10,:40,:100] = 0
+        window.top_slice_view.set_image(scan.data[:,:,0], True)
+        window.bot_slice_view.set_image(scan.data[0,:,:], True)
         window.show()
         exit_code = app.exec()
 
