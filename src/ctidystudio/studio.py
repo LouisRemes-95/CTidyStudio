@@ -121,9 +121,11 @@ class SliceView(QGraphicsView):
         super().resizeEvent(event)
 
         w = self.viewport().width()
+        h = self.viewport().height()
 
         size = int(w * self.BTN_SIZE_RATIO)
-        margin = int(w * self.BTN_MARGIN_RATIO)
+        horizontal_margin = int(w * self.BTN_MARGIN_RATIO)
+        vertical_margin = int(h * self.BTN_MARGIN_RATIO)
 
         # resize buttons
         self._rotate_cw_btn.setFixedSize(size, size)
@@ -138,8 +140,8 @@ class SliceView(QGraphicsView):
         self._rotate_ccw_btn.setFont(font)
 
         # position
-        self._rotate_cw_btn.move(margin, margin)
-        self._rotate_ccw_btn.move(margin + size + margin, margin)
+        self._rotate_cw_btn.move(horizontal_margin + size + horizontal_margin, vertical_margin)
+        self._rotate_ccw_btn.move(horizontal_margin, vertical_margin)
 
     def set_image(self, image: np.ndarray, fit : bool =False):
         if image.ndim != 2:
@@ -185,10 +187,11 @@ class SliceView(QGraphicsView):
         bar_width = int(w * self.BAR_WIDTH_RATIO)
         bar_height = int(h * self.BAR_HEIGHT_RATIO)
 
-        margin = int(w * self.BAR_MARGIN_RATIO)
+        horizontal_margin = int(w * self.BAR_MARGIN_RATIO)
+        vertical_margin = int(h * self.BAR_MARGIN_RATIO)
 
-        x = w - margin - bar_width
-        y = h - margin - bar_height
+        x = w - horizontal_margin - bar_width
+        y = h - vertical_margin - bar_height
 
         painter.fillRect(x, y, bar_width, bar_height, Qt.GlobalColor.white)
 
