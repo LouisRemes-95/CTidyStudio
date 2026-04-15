@@ -1,12 +1,13 @@
 import sys
 from pathlib import Path
 from enum import Enum
+from typing import Final
 import math
 
 import numpy as np
 from PySide6.QtCore import Qt, QPoint
-from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QWidget, QHBoxLayout, QVBoxLayout, QPushButton
-from PySide6.QtGui import QImage, QPixmap, QPen, QPainter, QFont
+from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QGraphicsDropShadowEffect
+from PySide6.QtGui import QImage, QPixmap, QPen, QFont, QColor
 from rich.live import Live
 from rich.text import Text
 
@@ -78,6 +79,12 @@ class CTidyStudio(QMainWindow):
 
 
 class SliceView(QGraphicsView):
+    BAR_WIDTH_RATIO: Final = 0.1
+    BAR_HEIGHT_RATIO: Final = 0.015
+    BAR_MARGIN_RATIO: Final = 0.05
+    BTN_SIZE_RATIO: Final = 0.04
+    BTN_MARGIN_RATIO: Final = 0.02
+
     def __init__(self, voxel_size: int, direction_pair: Direction_pair):
         super().__init__()
 
@@ -102,7 +109,8 @@ class SliceView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
 
-        self._rotate_btn = QPushButton("⟳", self.viewport())
+        self._rotate_cw_btn = self._create_overlay_button("⟳")
+        self._rotate_ccw_btn = self._create_overlay_button("⟲")
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -111,6 +119,27 @@ class SliceView(QGraphicsView):
     
     def resizeEvent(self, event):
         super().resizeEvent(event)
+
+        w = self.viewport().width()
+
+        size = int(w * self.BTN_SIZE_RATIO)
+        margin = int(w * self.BTN_MARGIN_RATIO)
+
+        # resize buttons
+        self._rotate_cw_btn.setFixedSize(size, size)
+        self._rotate_ccw_btn.setFixedSize(size, size)
+
+        # scale font
+        font_size = int(size * 1.2)
+        font = self._rotate_cw_btn.font()
+        font.setPixelSize(font_size)
+
+        self._rotate_cw_btn.setFont(font)
+        self._rotate_ccw_btn.setFont(font)
+
+        # position
+        self._rotate_cw_btn.move(margin, margin)
+        self._rotate_ccw_btn.move(margin + size + margin, margin)
 
     def set_image(self, image: np.ndarray, fit : bool =False):
         if image.ndim != 2:
@@ -153,10 +182,10 @@ class SliceView(QGraphicsView):
         w = self.viewport().width()
         h = self.viewport().height()
 
-        bar_width = int(w * 0.1)
-        bar_height = int(h * 0.015)
+        bar_width = int(w * self.BAR_WIDTH_RATIO)
+        bar_height = int(h * self.BAR_HEIGHT_RATIO)
 
-        margin = int(w * 0.05)
+        margin = int(w * self.BAR_MARGIN_RATIO)
 
         x = w - margin - bar_width
         y = h - margin - bar_height
@@ -243,6 +272,40 @@ class SliceView(QGraphicsView):
         factor = max(factor, fit_scale)
 
         self.scale(factor, factor)
+
+    def _create_overlay_button(self, text: str) -> QPushButton:
+        btn = QPushButton(text, self)
+        btn.setFixedSize(36, 36)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setFocusPolicy(Qt.NoFocus)
+
+        # shadow (outline effect)
+        shadow = QGraphicsDropShadowEffect(btn)
+        shadow.setBlurRadius(0)
+        shadow.setOffset(0, 0)
+        shadow.setColor(QColor(0, 0, 0))
+        btn.setGraphicsEffect(shadow)
+
+        # style
+        btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: white;
+                border: none;
+                border-radius: 0px;
+                font-weight: bold;
+                padding: 0px;
+                margin: 0px;
+            }
+            QPushButton:hover {
+                color: rgb(51, 153, 255);
+            }
+            QPushButton:pressed {
+                color: rgba(51, 153, 255, 120);
+            }
+        """)
+
+        return btn
 
 
 def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: float) -> int:
