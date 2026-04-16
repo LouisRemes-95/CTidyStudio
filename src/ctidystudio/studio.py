@@ -27,7 +27,7 @@ SI_PREFIXES = {
 
 
 class Direction_pair(tuple, Enum):
-    XY = (0, 1)
+    YX = (1, 0)
     YZ = (1, 2)
 
 
@@ -55,13 +55,15 @@ class CTidyStudio(QMainWindow):
         super().__init__()
 
         self.scan = scan
+        self.view_position = (0, 0, 0)
         self._build_ui()
+        self._update_ui_data()
 
     def _build_ui(self):
         self.setWindowTitle("CTidyStudio")
         self.resize(1000, 700)
 
-        self.top_slice_view = SliceView(self.scan.voxel_size, Direction_pair.XY)
+        self.top_slice_view = SliceView(self.scan.voxel_size, Direction_pair.YX)
         self.bot_slice_view = SliceView(self.scan.voxel_size, Direction_pair.YZ)
 
         self.top_slice_view.rotate_request.connect(self._on_rotate_request)
@@ -83,8 +85,13 @@ class CTidyStudio(QMainWindow):
         main_layout.addWidget(left_container, 2)
         main_layout.addWidget(right_panel, 1)
 
-    def _on_rotate_request(self, rotation_axis: tuple):
-        print(rotation_axis)
+    def _update_ui_data(self) -> None:
+        self.top_slice_view.set_image(self.scan.data[:,:,self.view_position[2]], True)
+        self.bot_slice_view.set_image(self.scan.data[self.view_position[0],:,:], True)
+
+    def _on_rotate_request(self, rotation_axis: tuple) -> None:
+        self.scan.rot90(rotation_axis)
+        self._update_ui_data()
         pass
     
 
@@ -162,7 +169,7 @@ class SliceView(QGraphicsView):
         if image.dtype != np.uint8:
             raise ValueError("Expected uint8 image")
 
-        if self._direction_pair == Direction_pair.XY:
+        if self._direction_pair == Direction_pair.YX:
             image = image.T
 
         image = np.ascontiguousarray(np.flipud(image))
@@ -344,10 +351,8 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
     app = QApplication.instance() or QApplication(sys.argv)
         
     with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
-        window = CTidyStudio(scan)
         scan.data[:10,:40,:100] = 0
-        window.top_slice_view.set_image(scan.data[:,:,0], True)
-        window.bot_slice_view.set_image(scan.data[0,:,:], True)
+        window = CTidyStudio(scan)
         window.show()
         exit_code = app.exec()
 

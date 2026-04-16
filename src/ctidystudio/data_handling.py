@@ -21,6 +21,9 @@ class Scan:
         data = self.data
         self.data = ((data - data.min()) / (data.max() - data.min()) * 255).astype(np.uint8)
 
+    def rot90(self, rotation_axis: tuple):
+        self.data = np.rot90(self.data, 1, rotation_axis)
+
 
 def load_tif_stack(path: Path, voxel_size: float) -> Scan:
     files = sorted(path.glob("*.tif"))
