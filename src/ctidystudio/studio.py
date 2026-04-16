@@ -1,11 +1,11 @@
 import sys
 from pathlib import Path
 from enum import Enum
-from typing import Final
+from typing import Final, Callable
 import math
 
 import numpy as np
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt, QPoint, Signal
 from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QGraphicsDropShadowEffect
 from PySide6.QtGui import QImage, QPixmap, QPen, QFont, QColor
 from rich.live import Live
@@ -25,9 +25,11 @@ SI_PREFIXES = {
      9:  "G",   # giga
 }
 
-class Direction_pair(str, Enum):
-    XY = "XY"
-    YZ = "YZ"
+
+class Direction_pair(tuple, Enum):
+    XY = (0, 1)
+    YZ = (1, 2)
+
 
 def _to_SI(x, unit="m"):
     if x == 0:
@@ -61,6 +63,10 @@ class CTidyStudio(QMainWindow):
 
         self.top_slice_view = SliceView(self.scan.voxel_size, Direction_pair.XY)
         self.bot_slice_view = SliceView(self.scan.voxel_size, Direction_pair.YZ)
+
+        self.top_slice_view.rotate_request.connect(self._on_rotate_request)
+        self.bot_slice_view.rotate_request.connect(self._on_rotate_request)
+
         right_panel = QWidget()
 
         main_container = QWidget()
@@ -77,6 +83,10 @@ class CTidyStudio(QMainWindow):
         main_layout.addWidget(left_container, 2)
         main_layout.addWidget(right_panel, 1)
 
+    def _on_rotate_request(self, rotation_axis: tuple):
+        print(rotation_axis)
+        pass
+    
 
 class SliceView(QGraphicsView):
     BAR_WIDTH_RATIO: Final = 0.1
@@ -84,6 +94,8 @@ class SliceView(QGraphicsView):
     BAR_MARGIN_RATIO: Final = 0.05
     BTN_SIZE_RATIO: Final = 0.04
     BTN_MARGIN_RATIO: Final = 0.02
+
+    rotate_request = Signal(tuple)
 
     def __init__(self, voxel_size: int, direction_pair: Direction_pair):
         super().__init__()
@@ -109,8 +121,8 @@ class SliceView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
 
-        self._rotate_cw_btn = self._create_overlay_button("⟳")
-        self._rotate_ccw_btn = self._create_overlay_button("⟲")
+        self._rotate_cw_btn = self._create_overlay_button("⟳", lambda: self.rotate_request.emit(self._direction_pair.value))
+        self._rotate_ccw_btn = self._create_overlay_button("⟲", lambda: self.rotate_request.emit(self._direction_pair.value[::-1]))
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -276,7 +288,7 @@ class SliceView(QGraphicsView):
 
         self.scale(factor, factor)
 
-    def _create_overlay_button(self, text: str) -> QPushButton:
+    def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:
         btn = QPushButton(text, self)
         btn.setFixedSize(36, 36)
         btn.setCursor(Qt.PointingHandCursor)
@@ -307,6 +319,8 @@ class SliceView(QGraphicsView):
                 color: rgba(51, 153, 255, 120);
             }
         """)
+
+        btn.clicked.connect(func)
 
         return btn
 
