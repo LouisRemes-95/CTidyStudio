@@ -102,6 +102,8 @@ class SliceView(QGraphicsView):
     BTN_SIZE_RATIO: Final = 0.04
     BTN_MARGIN_RATIO: Final = 0.02
 
+    ZOOM_FACTOR: Final = 1.15
+
     rotate_request = Signal(tuple)
 
     def __init__(self, voxel_size: int, direction_pair: Direction_pair):
@@ -115,7 +117,6 @@ class SliceView(QGraphicsView):
 
         self._pixmap_item = QGraphicsPixmapItem()
         self.scene.addItem(self._pixmap_item)
-        self.scene.setSceneRect(self._pixmap_item.boundingRect())
 
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -134,7 +135,7 @@ class SliceView(QGraphicsView):
     def showEvent(self, event):
         super().showEvent(event)
         
-        self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
+        self.fit_view()
     
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -186,12 +187,20 @@ class SliceView(QGraphicsView):
 
         self._pixmap_item.setPixmap(pixmap)
 
-        if fit:
-            self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
+        self.scene.setSceneRect(self._pixmap_item.boundingRect())
 
-    def fit_image(self):
-        self.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
-        self._zoom = 1.0
+        if fit:
+            self.fit_view()
+    
+    def fit_view(self, crop_only: bool = False) -> None:
+        pixmap = self._pixmap_item.pixmap()
+        if pixmap.isNull():
+            return
+
+        fit_scale = min(self.viewport().width() / pixmap.width(), self.viewport().height() / pixmap.height()) / self.transform().m11()
+
+        if not crop_only or (fit_scale > 1):
+            self.scale(fit_scale, fit_scale)
 
     def drawForeground(self, painter, rect):
         super().drawForeground(painter, rect)
@@ -280,21 +289,14 @@ class SliceView(QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def wheelEvent(self, event):
-        factor = 1.15
+        factor = self.ZOOM_FACTOR
         if event.angleDelta().y() < 0:
             factor = 1 / factor
 
-        pixmap = self._pixmap_item.pixmap()
-        if pixmap.isNull():
-            return
-
-        fit_scale = min(self.viewport().width() / pixmap.width(), self.viewport().height() / pixmap.height()) / self.transform().m11()
-        fit_scale = min(fit_scale, 1)
-
-        factor = max(factor, fit_scale)
-
         self.scale(factor, factor)
 
+        self.fit_view(True)
+        
     def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:
         btn = QPushButton(text, self)
         btn.setFixedSize(36, 36)
