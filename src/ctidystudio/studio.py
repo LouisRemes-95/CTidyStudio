@@ -5,14 +5,37 @@ from typing import Final, Callable
 import math
 
 import numpy as np
-from PySide6.QtCore import Qt, QPoint, Signal, QPointF
-from PySide6.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QGraphicsDropShadowEffect
-from PySide6.QtGui import QImage, QPixmap, QPen, QFont, QColor
+from PySide6.QtCore import (
+    Qt,
+    QPoint,
+    Signal,
+    QPointF,
+)
+from PySide6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QGraphicsView,
+    QGraphicsScene,
+    QGraphicsPixmapItem,
+    QWidget,
+    QHBoxLayout,
+    QVBoxLayout,
+    QPushButton,
+    QGraphicsDropShadowEffect,
+)
+from PySide6.QtGui import (
+    QImage,
+    QPixmap,
+    QPen,
+    QFont,
+    QColor,
+)
 from rich.live import Live
 from rich.text import Text
 
 from ctidystudio.common import UserError, console
 from ctidystudio.data_handling import load_tif_stack, Scan
+
 
 SI_PREFIXES = {
     -12: "p",   # pico
@@ -26,12 +49,12 @@ SI_PREFIXES = {
 }
 
 
-class Direction_pair(tuple, Enum):
+class DirectionPair(tuple, Enum):
     YX = (1, 0)
     YZ = (1, 2)
 
 
-def _to_SI(x, unit="m"):
+def _to_si(x: int, unit: str = "m") -> str:
     if x == 0:
         return f"0 {unit}"
 
@@ -51,7 +74,7 @@ class Mode(str, Enum):
 
 
 class CTidyStudio(QMainWindow):
-    def __init__(self, scan: Scan):
+    def __init__(self, scan: Scan) -> None:
         super().__init__()
 
         self.scan = scan
@@ -59,12 +82,12 @@ class CTidyStudio(QMainWindow):
         self._build_ui()
         self._update_ui_data()
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         self.setWindowTitle("CTidyStudio")
         self.resize(1000, 700)
 
-        self.top_slice_view = SliceView(self.scan.voxel_size, Direction_pair.YX)
-        self.bot_slice_view = SliceView(self.scan.voxel_size, Direction_pair.YZ)
+        self.top_slice_view = SliceView(self.scan.voxel_size, DirectionPair.YX)
+        self.bot_slice_view = SliceView(self.scan.voxel_size, DirectionPair.YZ)
 
         self.top_slice_view.rotate_request.connect(self._on_rotate_request)
         self.bot_slice_view.rotate_request.connect(self._on_rotate_request)
@@ -86,16 +109,15 @@ class CTidyStudio(QMainWindow):
         main_layout.addWidget(right_panel, 1)
 
     def _update_ui_data(self) -> None:
-        self.top_slice_view.set_image(self.scan.data[:,:,self.slice_position[2]], False)
-        self.bot_slice_view.set_image(self.scan.data[self.slice_position[0],:,:], False)
+        self.top_slice_view.set_image(self.scan.data[:, :, self.slice_position[2]], False)
+        self.bot_slice_view.set_image(self.scan.data[self.slice_position[0], :, :], False)
 
-    def _on_rotate_request(self, rotation_axis: tuple, rotation_point: QPointF) -> None:
+    def _on_rotate_request(self, rotation_axis: tuple[int, int], rotation_point: QPointF) -> None:
         self.scan.rot90(rotation_axis)
         self._update_ui_data()
         for view in (self.top_slice_view, self.bot_slice_view):
             if view._direction_pair.value in (rotation_axis, rotation_axis[::-1]):
                 view.centerOn(rotation_point)
-        pass
     
 
 class SliceView(QGraphicsView):
@@ -109,10 +131,10 @@ class SliceView(QGraphicsView):
 
     rotate_request = Signal(tuple, QPointF)
 
-    def __init__(self, voxel_size: int, direction_pair: Direction_pair):
+    def __init__(self, voxel_size: float, direction_pair: DirectionPair) -> None:
         super().__init__()
 
-        self.image = None
+        self.image: np.ndarray | None = None
         self._voxel_size = voxel_size
         self._direction_pair = direction_pair
 
@@ -136,12 +158,12 @@ class SliceView(QGraphicsView):
         self._rotate_cw_btn = self._create_overlay_button("⟳", self._rotation_btn_handler(True))
         self._rotate_ccw_btn = self._create_overlay_button("⟲", self._rotation_btn_handler(False))
 
-    def showEvent(self, event):
+    def showEvent(self, event) -> None:
         super().showEvent(event)
         
         self.fit_view()
     
-    def resizeEvent(self, event):
+    def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
 
         old = event.oldSize()
@@ -178,7 +200,7 @@ class SliceView(QGraphicsView):
         self._rotate_cw_btn.move(horizontal_margin + size + horizontal_margin, vertical_margin)
         self._rotate_ccw_btn.move(horizontal_margin, vertical_margin)
 
-    def set_image(self, image: np.ndarray, fit : bool =False):
+    def set_image(self, image: np.ndarray, fit: bool = False) -> None:
         if image.ndim != 2:
             raise ValueError("Expected a 2D array")
         
@@ -187,7 +209,7 @@ class SliceView(QGraphicsView):
         
         self.image = image
 
-        if self._direction_pair == Direction_pair.YX:
+        if self._direction_pair == DirectionPair.YX:
             image = image.T
 
         image = np.ascontiguousarray(np.flipud(image))
@@ -218,7 +240,7 @@ class SliceView(QGraphicsView):
         if not crop_only or (fit_scale > 1):
             self.scale(fit_scale, fit_scale)
 
-    def drawForeground(self, painter, rect):
+    def drawForeground(self, painter, rect) -> None:
         super().drawForeground(painter, rect)
 
         painter.save()
@@ -245,7 +267,7 @@ class SliceView(QGraphicsView):
 
         # scale text
         real_size = self._voxel_size / 1000 * bar_width / self.transform().m11()
-        text = _to_SI(real_size)
+        text = _to_si(real_size)
 
         font = QFont()
         font.setPointSizeF(bar_width / 4)
@@ -269,7 +291,7 @@ class SliceView(QGraphicsView):
 
         painter.restore()
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event) -> None:
         if event.button() == Qt.RightButton:
             self._panning = True
             self._pan_start = event.pos()
@@ -278,7 +300,7 @@ class SliceView(QGraphicsView):
 
         super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event) -> None:
         if self._panning:
             delta = event.pos() - self._pan_start
             self._pan_start = event.pos()
@@ -296,7 +318,7 @@ class SliceView(QGraphicsView):
 
         super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event) -> None:
         if event.button() == Qt.RightButton:
             self._panning = False
             event.accept()
@@ -304,7 +326,7 @@ class SliceView(QGraphicsView):
 
         super().mouseReleaseEvent(event)
 
-    def wheelEvent(self, event):
+    def wheelEvent(self, event) -> None:
         factor = self.ZOOM_FACTOR
         if event.angleDelta().y() < 0:
             factor = 1 / factor
@@ -360,6 +382,7 @@ class SliceView(QGraphicsView):
         
         return rotation_btn_func
 
+
 def _rotate_pixmap_point_90(point: QPointF, width: int, height: int, clockwise: bool) -> QPointF:
     x = point.x()
     y = point.y()
@@ -368,6 +391,7 @@ def _rotate_pixmap_point_90(point: QPointF, width: int, height: int, clockwise: 
         return QPointF(height - 1 - y, x)
     else:
         return QPointF(y, width - 1 - x)
+
 
 def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: float) -> int:
     with console.status("[cyan]Loading tif stack..."):
@@ -398,9 +422,7 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
 
     return exit_code
 
-
-
-    # TO DO:
+# TO DO:
         # try:
         #     rel = output_dir.relative_to(Path.cwd())
         # except ValueError:

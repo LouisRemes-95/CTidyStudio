@@ -11,7 +11,7 @@ from ctidystudio.studio import run_ctidy_studio, Mode
 
 
 class RichArgumentParser(argparse.ArgumentParser):
-    def error(self, message):
+    def error(self, message: str) -> None:
         console.print(f"[bold red]✖ Argument error:[/bold red] {message}\n")
         self.print_help()
         raise SystemExit(2)
