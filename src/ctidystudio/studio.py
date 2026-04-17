@@ -140,6 +140,10 @@ class SliceView(QGraphicsView):
     def resizeEvent(self, event):
         super().resizeEvent(event)
 
+        ratio = min((event.size().width()/event.oldSize().width(), event.size().height()/event.oldSize().height()), key=lambda x: abs(x - 1))
+        self.scale(ratio, ratio)
+        self.fit_view(True)
+
         w = self.viewport().width()
         h = self.viewport().height()
 
