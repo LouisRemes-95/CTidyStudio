@@ -155,8 +155,8 @@ class SliceView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
 
-        self._rotate_cw_btn = self._create_overlay_button("⟳", self._rotation_btn_handler(True))
-        self._rotate_ccw_btn = self._create_overlay_button("⟲", self._rotation_btn_handler(False))
+        self._rotate_cw_btn = self._create_overlay_button("⟳", lambda: self._emit_rotation_request(True))
+        self._rotate_ccw_btn = self._create_overlay_button("⟲", lambda: self._emit_rotation_request(False))
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -371,16 +371,13 @@ class SliceView(QGraphicsView):
 
         return btn
 
-    def _rotation_btn_handler(self, clockwise: bool) -> Callable:
-        def rotation_btn_func() -> None:
-            view_center_pixmap = self._pixmap_item.mapFromScene(self.mapToScene(self.viewport().rect().center()))
-            rotated_view_center = _rotate_pixmap_point_90(view_center_pixmap, self._pixmap_item.pixmap().width(), self._pixmap_item.pixmap().height(), clockwise)
+    def _emit_rotation_request(self, clockwise: bool) -> None:
+        view_center_pixmap = self._pixmap_item.mapFromScene(self.mapToScene(self.viewport().rect().center()))
+        rotated_view_center = _rotate_pixmap_point_90(view_center_pixmap, self._pixmap_item.pixmap().width(), self._pixmap_item.pixmap().height(), clockwise)
 
-            direction = self._direction_pair.value[::-1] if not clockwise else self._direction_pair.value
+        direction = self._direction_pair.value[::-1] if not clockwise else self._direction_pair.value
 
-            self.rotate_request.emit(direction, rotated_view_center)
-        
-        return rotation_btn_func
+        self.rotate_request.emit(direction, rotated_view_center)
 
 
 def _rotate_pixmap_point_90(point: QPointF, width: int, height: int, clockwise: bool) -> QPointF:
@@ -389,8 +386,7 @@ def _rotate_pixmap_point_90(point: QPointF, width: int, height: int, clockwise: 
 
     if clockwise:
         return QPointF(height - 1 - y, x)
-    else:
-        return QPointF(y, width - 1 - x)
+    return QPointF(y, width - 1 - x)
 
 
 def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: float) -> int:
