@@ -150,6 +150,9 @@ class SliceView(QGraphicsView):
     def __init__(self, voxel_size: float, view_direction: Direction) -> None:
         super().__init__()
 
+        if view_direction not in {Direction.Z_, Direction.X}:
+            raise ValueError(f"Unsupported direction: {view_direction}")
+
         self.image: np.ndarray | None = None
         self._voxel_size = voxel_size
         self._view_direction = view_direction
@@ -227,7 +230,7 @@ class SliceView(QGraphicsView):
         
         self.image = image
 
-        if self._view_direction in {Direction.X_, Direction.Y_, Direction.Z_}:
+        if self._view_direction == Direction.X_:
             image = image.T
 
         image = np.ascontiguousarray(np.flipud(image))
