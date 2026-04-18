@@ -15,6 +15,7 @@ class Scan:
         if data.ndim != 3:
             raise ValueError(f"data must be 3D (z, y, x), got {data.ndim}D")
         self.data = data
+        self.compute_center()
 
     def quantization_to_uint8(self) -> None:
         data = self.data
@@ -29,6 +30,10 @@ class Scan:
 
     def rot90(self, rotation_axis: tuple[int, int]) -> None:
         self.data = np.rot90(self.data, 1, rotation_axis)
+        self.compute_center()
+
+    def compute_center(self):
+        self.center = (np.array(self.data.size)-1)/2
 
 
 def load_tif_stack(path: Path, voxel_size: float) -> Scan:

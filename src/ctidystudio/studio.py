@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QPushButton,
     QGraphicsDropShadowEffect,
+    QGraphicsLineItem,
 )
 from PySide6.QtGui import (
     QImage,
@@ -49,11 +50,6 @@ SI_PREFIXES = {
 }
 
 
-class DirectionPair(tuple, Enum):
-    YX = (1, 0)
-    YZ = (1, 2)
-
-
 def _to_si(x: int, unit: str = "m") -> str:
     if x == 0:
         return f"0 {unit}"
@@ -65,6 +61,26 @@ def _to_si(x: int, unit: str = "m") -> str:
     value = x / (10 ** exp3)
 
     return f"{value:.2f} {prefix}{unit}"
+
+
+class Direction(tuple, Enum):
+    X = (1, 2)
+    Y = (0, 2)
+    Z = (0, 1)
+    X_ = (2, 1)
+    Y_ = (2, 0)
+    Z_ = (1, 0)
+
+    def __neg__(self):
+        opposites = {
+            Direction.X: Direction.X_,
+            Direction.Y: Direction.Y_,
+            Direction.Z: Direction.Z_,
+            Direction.X_: Direction.X,
+            Direction.Y_: Direction.Y,
+            Direction.Z_: Direction.Z,
+        }
+        return opposites[self]
 
 
 class Mode(str, Enum):
@@ -86,8 +102,8 @@ class CTidyStudio(QMainWindow):
         self.setWindowTitle("CTidyStudio")
         self.resize(1000, 700)
 
-        self.top_slice_view = SliceView(self.scan.voxel_size, DirectionPair.YX)
-        self.bot_slice_view = SliceView(self.scan.voxel_size, DirectionPair.YZ)
+        self.top_slice_view = SliceView(self.scan.voxel_size, Direction.Z_)
+        self.bot_slice_view = SliceView(self.scan.voxel_size, Direction.X)
 
         self.top_slice_view.rotate_request.connect(self._on_rotate_request)
         self.bot_slice_view.rotate_request.connect(self._on_rotate_request)
@@ -112,11 +128,11 @@ class CTidyStudio(QMainWindow):
         self.top_slice_view.set_image(self.scan.data[:, :, self.slice_position[2]], False)
         self.bot_slice_view.set_image(self.scan.data[self.slice_position[0], :, :], False)
 
-    def _on_rotate_request(self, rotation_axis: tuple[int, int], rotation_point: QPointF) -> None:
-        self.scan.rot90(rotation_axis)
+    def _on_rotate_request(self, rotation_axis: Direction, rotation_point: QPointF) -> None:
+        self.scan.rot90(rotation_axis.value)
         self._update_ui_data()
         for view in (self.top_slice_view, self.bot_slice_view):
-            if view._direction_pair.value in (rotation_axis, rotation_axis[::-1]):
+            if view._view_direction.value in (rotation_axis.value, rotation_axis.value[::-1]):
                 view.centerOn(rotation_point)
     
 
@@ -131,12 +147,12 @@ class SliceView(QGraphicsView):
 
     rotate_request = Signal(tuple, QPointF)
 
-    def __init__(self, voxel_size: float, direction_pair: DirectionPair) -> None:
+    def __init__(self, voxel_size: float, view_direction: Direction) -> None:
         super().__init__()
 
         self.image: np.ndarray | None = None
         self._voxel_size = voxel_size
-        self._direction_pair = direction_pair
+        self._view_direction = view_direction
 
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
@@ -158,9 +174,11 @@ class SliceView(QGraphicsView):
         self._rotate_cw_btn = self._create_overlay_button("⟳", lambda: self._emit_rotation_request(True))
         self._rotate_ccw_btn = self._create_overlay_button("⟲", lambda: self._emit_rotation_request(False))
 
+
     def showEvent(self, event) -> None:
         super().showEvent(event)
         
+        self.drawLine()
         self.fit_view()
     
     def resizeEvent(self, event) -> None:
@@ -209,7 +227,7 @@ class SliceView(QGraphicsView):
         
         self.image = image
 
-        if self._direction_pair == DirectionPair.YX:
+        if self._view_direction in {Direction.X_, Direction.Y_, Direction.Z_}:
             image = image.T
 
         image = np.ascontiguousarray(np.flipud(image))
@@ -290,6 +308,12 @@ class SliceView(QGraphicsView):
         painter.drawText(text_x, text_y, text)
 
         painter.restore()
+
+    def drawLine(self) -> None:
+        pixmap_item = self._pixmap_item
+        self.line = QGraphicsLineItem(0, 0, 0, pixmap_item.boundingRect().height(), pixmap_item)
+        self.line.setPen(QPen(Qt.red, 2))
+        self.line.setZValue(10)
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.RightButton:
@@ -375,7 +399,7 @@ class SliceView(QGraphicsView):
         view_center_pixmap = self._pixmap_item.mapFromScene(self.mapToScene(self.viewport().rect().center()))
         rotated_view_center = _rotate_pixmap_point_90(view_center_pixmap, self._pixmap_item.pixmap().width(), self._pixmap_item.pixmap().height(), clockwise)
 
-        direction = self._direction_pair.value[::-1] if not clockwise else self._direction_pair.value
+        direction = self._view_direction if clockwise else -self._view_direction
 
         self.rotate_request.emit(direction, rotated_view_center)
 
