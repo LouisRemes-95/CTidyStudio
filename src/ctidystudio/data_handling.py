@@ -1,7 +1,9 @@
 from pathlib import Path
+from enum import Enum
 
 import tifffile
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 
 class Scan:
@@ -33,7 +35,53 @@ class Scan:
         self.compute_center()
 
     def compute_center(self):
-        self.center = (np.array(self.data.size)-1)/2
+        self.center = (np.array(self.data.shape)-1)/2
+
+
+class Direction(tuple, Enum):
+    X = (1, 2)
+    Y = (0, 2)
+    Z = (0, 1)
+    X_ = (2, 1)
+    Y_ = (2, 0)
+    Z_ = (1, 0)
+
+    def __neg__(self):
+        opposites = {
+            Direction.X: Direction.X_,
+            Direction.Y: Direction.Y_,
+            Direction.Z: Direction.Z_,
+            Direction.X_: Direction.X,
+            Direction.Y_: Direction.Y,
+            Direction.Z_: Direction.Z,
+        }
+        return opposites[self]
+    
+    def params(self):
+        params = {
+            Direction.X: {"seq": "x", "angles": 90, "degrees": True},
+            Direction.Y: {"seq": "y", "angles": 90, "degrees": True},
+            Direction.Z: {"seq": "z", "angles": 90, "degrees": True},
+            Direction.X_: {"seq": "x", "angles": -90, "degrees": True},
+            Direction.Y_: {"seq": "y", "angles": -90, "degrees": True},
+            Direction.Z_: {"seq": "z", "angles": -90, "degrees": True},
+        }
+        return params[self]
+
+
+class DomainOfInterest:
+    def __init__(self, shape: tuple[int, int, int]):
+        self._origin = np.array([[0, 0, 0]])
+        self._extend_vectors = np.ndarray([[shape[0]-1, 0, 0], [0, shape[1]-1, 0], [0, shape[2]-1, 0]])
+
+    def rotate_around(self, pivot: np.ndarray, direction: Direction):
+        assert pivot.shape == (1,3)
+
+        rot = R.from_euler(**direction.params())
+        
+        self._origin = rot.apply((self._origin - pivot)) + pivot
+        self._extend_vectors = rot.apply(self._extend_vectors)
+
 
 
 def load_tif_stack(path: Path, voxel_size: float) -> Scan:

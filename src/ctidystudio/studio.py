@@ -35,7 +35,7 @@ from rich.live import Live
 from rich.text import Text
 
 from ctidystudio.common import UserError, console
-from ctidystudio.data_handling import load_tif_stack, Scan
+from ctidystudio.data_handling import load_tif_stack, Scan, Direction
 
 
 SI_PREFIXES = {
@@ -61,26 +61,6 @@ def _to_si(x: int, unit: str = "m") -> str:
     value = x / (10 ** exp3)
 
     return f"{value:.2f} {prefix}{unit}"
-
-
-class Direction(tuple, Enum):
-    X = (1, 2)
-    Y = (0, 2)
-    Z = (0, 1)
-    X_ = (2, 1)
-    Y_ = (2, 0)
-    Z_ = (1, 0)
-
-    def __neg__(self):
-        opposites = {
-            Direction.X: Direction.X_,
-            Direction.Y: Direction.Y_,
-            Direction.Z: Direction.Z_,
-            Direction.X_: Direction.X,
-            Direction.Y_: Direction.Y,
-            Direction.Z_: Direction.Z,
-        }
-        return opposites[self]
 
 
 class Mode(str, Enum):
