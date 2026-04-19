@@ -10,6 +10,7 @@ from PySide6.QtCore import (
     QPoint,
     Signal,
     QPointF,
+    QRectF,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QGraphicsDropShadowEffect,
     QGraphicsLineItem,
+    QGraphicsRectItem,
 )
 from PySide6.QtGui import (
     QImage,
@@ -35,7 +37,7 @@ from rich.live import Live
 from rich.text import Text
 
 from ctidystudio.common import UserError, console
-from ctidystudio.data_handling import load_tif_stack, Scan, Direction
+from ctidystudio.data_handling import load_tif_stack, Scan, Direction, DomainOfInterest
 
 
 SI_PREFIXES = {
@@ -75,6 +77,8 @@ class CTidyStudio(QMainWindow):
 
         self.scan = scan
         self.slice_position = (0, 0, 0)
+        self.doi = DomainOfInterest(scan.data.shape)
+
         self._build_ui()
         self._update_ui_data()
 
@@ -161,8 +165,9 @@ class SliceView(QGraphicsView):
     def showEvent(self, event) -> None:
         super().showEvent(event)
         
-        self.drawLine()
+        # self.drawLine()
         self.fit_view()
+        self._draw_doi()
     
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -292,11 +297,18 @@ class SliceView(QGraphicsView):
 
         painter.restore()
 
-    def drawLine(self) -> None:
+    def _draw_line(self) -> None:
         pixmap_item = self._pixmap_item
         self.line = QGraphicsLineItem(0, 0, 0, pixmap_item.boundingRect().height(), pixmap_item)
         self.line.setPen(QPen(Qt.red, 2))
         self.line.setZValue(10)
+
+    def _draw_doi(self):
+        rect_item = QGraphicsRectItem(QRectF(50, 40, 200, 120), parent=self._pixmap_item)
+        rect_item.setPen(QPen(Qt.red, 2))
+        rect_item.setZValue(10)
+
+        pass
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.RightButton:

@@ -72,7 +72,7 @@ class Direction(tuple, Enum):
 class DomainOfInterest:
     def __init__(self, shape: tuple[int, int, int]):
         self._origin = np.array([[0, 0, 0]])
-        self._extend_vectors = np.ndarray([[shape[0]-1, 0, 0], [0, shape[1]-1, 0], [0, shape[2]-1, 0]])
+        self._extend_vectors = np.array([[shape[0]-1, 0, 0], [0, shape[1]-1, 0], [0, shape[2]-1, 0]])
 
     def rotate_around(self, pivot: np.ndarray, direction: Direction):
         assert pivot.shape == (1,3)
