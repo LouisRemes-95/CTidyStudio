@@ -4,6 +4,8 @@ from enum import Enum
 import tifffile
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+from PySide6.QtCore import QRect
+from PySide6.QtWidgets import QGraphicsPixmapItem
 
 
 class CardinalDirection(Enum):
@@ -61,6 +63,7 @@ class Orientation:
             raise ValueError("forward and up must be perpendicular")
         self.forward = forward
         self.up = up
+        self._compute_right()
 
     def _compute_right(self) -> None:
         self.right = CardinalDirection(tuple(np.cross(self.forward.vec, self.up.vec)))
@@ -100,17 +103,30 @@ class Scan:
 
 class DomainOfInterest:
     def __init__(self, shape: tuple[int, int, int]) -> None:
-        self._origin = np.array([[0, 0, 0]])
-        self._extend_vectors = np.array([[shape[0]-1, 0, 0], [0, shape[1]-1, 0], [0, shape[2]-1, 0]])
+        self._origin = np.array([0, 0, 0])
+        self._extend_vectors = np.array([[shape[0]-1, 0, 0], [0, shape[1]-1, 0], [0, 0, shape[2]-1]])
 
     def rotate_around(self, pivot: np.ndarray, direction: CardinalDirection) -> None:
-        assert pivot.shape == (1,3)
+        assert pivot.shape == (3,)
 
         rot = R.from_euler(**direction.rotation())
         
-        self._origin = rot.apply((self._origin - pivot)) + pivot
-        self._extend_vectors = rot.apply(self._extend_vectors)
+        self._origin = (rot.apply((self._origin - pivot)) + pivot)
+        self._extend_vectors = rot.apply(self._extend_vectors).astype(int)
 
+    def view_box(self, orientation: Orientation, pixmap_height: int) -> QRect:
+        h_pos = np.dot(orientation.right.vec, self._origin)
+        v_pos = pixmap_height - np.dot(orientation.up.vec, self._origin)
+
+        width = self._extend_vectors @ orientation.right.vec[:,None]
+        assert np.count_nonzero(width) == 1
+        width = width[width != 0][0]
+
+        height = self._extend_vectors @ orientation.up.vec[:,None]
+        assert np.count_nonzero(height) == 1
+        height = height[height != 0][0]
+
+        return QRect(h_pos, v_pos, width, -height)
 
 
 def load_tif_stack(path: Path, voxel_size: float) -> Scan:
