@@ -4,8 +4,7 @@ from enum import Enum
 import tifffile
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from PySide6.QtCore import QRect
-from PySide6.QtWidgets import QGraphicsPixmapItem
+from PySide6.QtCore import QRect, QPointF
 
 
 class CardinalDirection(Enum):
@@ -82,6 +81,10 @@ class Scan:
         self.data = data
         self.compute_center()
 
+    @property
+    def shape(self):
+        return self.data.shape
+
     def quantization_to_uint8(self) -> None:
         data = self.data
         data_min = data.min()
@@ -100,23 +103,25 @@ class Scan:
     def compute_center(self):
         self.center = (np.array(self.data.shape)-1)/2
 
+    def slice(self, axis: int, index: int):
+        slc = [slice(None)] * self.data.ndim
+        slc[axis] = index
+        return self.data[tuple(slc)]
 
 class DomainOfInterest:
     def __init__(self, shape: tuple[int, int, int]) -> None:
         self._origin = np.array([0, 0, 0])
         self._extend_vectors = np.array([[shape[0]-1, 0, 0], [0, shape[1]-1, 0], [0, 0, shape[2]-1]])
 
-    def rotate_around(self, pivot: np.ndarray, direction: CardinalDirection) -> None:
-        assert pivot.shape == (3,)
+    def rotate_and_translate(self, direction: CardinalDirection, source_pivot: np.ndarray, target_pivot: np.ndarray) -> None:
 
-        rot = R.from_euler(**direction.rotation())
+        rotation = R.from_euler(**direction.rotation())
         
-        self._origin = (rot.apply((self._origin - pivot)) + pivot)
-        self._extend_vectors = rot.apply(self._extend_vectors).astype(int)
+        self._origin = rotate_and_translate_point(self._origin, direction, source_pivot, target_pivot)
+        self._extend_vectors = rotation.apply(self._extend_vectors).astype(int)
 
     def view_box(self, orientation: Orientation, pixmap_height: int) -> QRect:
-        h_pos = np.dot(orientation.right.vec, self._origin)
-        v_pos = pixmap_height - np.dot(orientation.up.vec, self._origin)
+        h_pos, v_pos = view_to_pixmap_coord(self._origin, orientation, pixmap_height)
 
         width = self._extend_vectors @ orientation.right.vec[:,None]
         assert np.count_nonzero(width) == 1
@@ -127,6 +132,23 @@ class DomainOfInterest:
         height = height[height != 0][0]
 
         return QRect(h_pos, v_pos, width, -height)
+    
+
+def rotate_and_translate_point(point: np.ndarray, direction: CardinalDirection, source_pivot: np.ndarray, target_pivot: np.ndarray) -> np.ndarray:
+    if point.shape != (3,) or source_pivot.shape != (3,) or target_pivot.shape != (3,):
+        raise ValueError("point, source_pivot, and target_pivot must all have shape (3,)")
+
+    rotation = R.from_euler(**direction.rotation())
+
+    return (rotation.apply((point - source_pivot)) + target_pivot).astype(int)
+
+
+def view_to_pixmap_coord(point: np.ndarray, orientation: Orientation, pixmap_height: int) -> tuple[int, int]:
+    return np.dot(orientation.right.vec, point), pixmap_height - np.dot(orientation.up.vec, point)
+
+
+def pixmap_to_view_coord(point: QPointF, orientation: Orientation, pixmap_height: int, slice_index: int) -> np.ndarray:
+    return point.x() * orientation.right.vec + (pixmap_height - point.y()) * orientation.up.vec + slice_index * orientation.forward.vec
 
 
 def load_tif_stack(path: Path, voxel_size: float) -> Scan:
