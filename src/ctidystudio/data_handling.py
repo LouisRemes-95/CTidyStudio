@@ -6,6 +6,56 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 
+class CardinalDirection(tuple[int, int, int], Enum):
+    X = (1, 0, 0)
+    Y = (0, 1, 0)
+    Z = (0, 0, 1)
+    X_ = (-1, 0, 0)
+    Y_ = (0, -1, 0)
+    Z_ = (0, 0, -1)
+
+    def __neg__(self) -> "CardinalDirection":
+        opposites = {
+            CardinalDirection.X: CardinalDirection.X_,
+            CardinalDirection.Y: CardinalDirection.Y_,
+            CardinalDirection.Z: CardinalDirection.Z_,
+            CardinalDirection.X_: CardinalDirection.X,
+            CardinalDirection.Y_: CardinalDirection.Y,
+            CardinalDirection.Z_: CardinalDirection.Z,
+        }
+        return opposites[self]
+    
+    def rotating_plane(self) -> tuple[int, int]:
+        plane = {
+            CardinalDirection.X: (1, 2),
+            CardinalDirection.Y: (0, 2),
+            CardinalDirection.Z: (0, 1),
+            CardinalDirection.X_: (2, 1),
+            CardinalDirection.Y_: (2, 0),
+            CardinalDirection.Z_: (1, 0),
+        }
+        return plane[self]
+    
+    def rotation(self) -> dict[str, object]:
+        params = {
+            CardinalDirection.X: {"seq": "x", "angles": 90, "degrees": True},
+            CardinalDirection.Y: {"seq": "y", "angles": 90, "degrees": True},
+            CardinalDirection.Z: {"seq": "z", "angles": 90, "degrees": True},
+            CardinalDirection.X_: {"seq": "x", "angles": -90, "degrees": True},
+            CardinalDirection.Y_: {"seq": "y", "angles": -90, "degrees": True},
+            CardinalDirection.Z_: {"seq": "z", "angles": -90, "degrees": True},
+        }
+        return params[self]
+
+
+class Orientation:
+    def __init__(self, forward: CardinalDirection, up: CardinalDirection) -> None:
+        if sum(a * b for a, b in zip(forward.value, up.value)) != 0:
+            raise ValueError("forward and up must be perpendicular")
+        self.forward = forward
+        self.up = up
+
+
 class Scan:
     def __init__(self, voxel_size: float, data: np.ndarray) -> None:
         if voxel_size <= 0:
@@ -30,54 +80,23 @@ class Scan:
 
         self.data = ((data - data_min) / (data_max - data_min) * 255).astype(np.uint8)
 
-    def rot90(self, rotation_axis: tuple[int, int]) -> None:
-        self.data = np.rot90(self.data, 1, rotation_axis)
+    def rot90(self, rotation_axis: CardinalDirection) -> None:
+        self.data = np.rot90(self.data, 1, rotation_axis.rotating_plane())
         self.compute_center()
 
     def compute_center(self):
         self.center = (np.array(self.data.shape)-1)/2
 
 
-class Direction(tuple, Enum):
-    X = (1, 2)
-    Y = (0, 2)
-    Z = (0, 1)
-    X_ = (2, 1)
-    Y_ = (2, 0)
-    Z_ = (1, 0)
-
-    def __neg__(self):
-        opposites = {
-            Direction.X: Direction.X_,
-            Direction.Y: Direction.Y_,
-            Direction.Z: Direction.Z_,
-            Direction.X_: Direction.X,
-            Direction.Y_: Direction.Y,
-            Direction.Z_: Direction.Z,
-        }
-        return opposites[self]
-    
-    def params(self):
-        params = {
-            Direction.X: {"seq": "x", "angles": 90, "degrees": True},
-            Direction.Y: {"seq": "y", "angles": 90, "degrees": True},
-            Direction.Z: {"seq": "z", "angles": 90, "degrees": True},
-            Direction.X_: {"seq": "x", "angles": -90, "degrees": True},
-            Direction.Y_: {"seq": "y", "angles": -90, "degrees": True},
-            Direction.Z_: {"seq": "z", "angles": -90, "degrees": True},
-        }
-        return params[self]
-
-
 class DomainOfInterest:
-    def __init__(self, shape: tuple[int, int, int]):
+    def __init__(self, shape: tuple[int, int, int]) -> None:
         self._origin = np.array([[0, 0, 0]])
         self._extend_vectors = np.array([[shape[0]-1, 0, 0], [0, shape[1]-1, 0], [0, shape[2]-1, 0]])
 
-    def rotate_around(self, pivot: np.ndarray, direction: Direction):
+    def rotate_around(self, pivot: np.ndarray, direction: CardinalDirection) -> None:
         assert pivot.shape == (1,3)
 
-        rot = R.from_euler(**direction.params())
+        rot = R.from_euler(**direction.rotation())
         
         self._origin = rot.apply((self._origin - pivot)) + pivot
         self._extend_vectors = rot.apply(self._extend_vectors)

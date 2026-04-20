@@ -37,7 +37,13 @@ from rich.live import Live
 from rich.text import Text
 
 from ctidystudio.common import UserError, console
-from ctidystudio.data_handling import load_tif_stack, Scan, Direction, DomainOfInterest
+from ctidystudio.data_handling import (
+    load_tif_stack,
+    Scan,
+    CardinalDirection,
+    Orientation,
+    DomainOfInterest
+)
 
 
 SI_PREFIXES = {
@@ -65,6 +71,19 @@ def _to_si(x: int, unit: str = "m") -> str:
     return f"{value:.2f} {prefix}{unit}"
 
 
+class ViewOrientation(Enum):
+    FRONT = Orientation(CardinalDirection.Z_, CardinalDirection.Y)
+    SIDE  = Orientation(CardinalDirection.X,  CardinalDirection.Y)
+
+    @property
+    def forward(self):
+        return self.value.forward
+
+    @property
+    def up(self):
+        return self.value.up
+
+
 class Mode(str, Enum):
     RESET = "reset"
     RESUME = "resume"
@@ -86,8 +105,8 @@ class CTidyStudio(QMainWindow):
         self.setWindowTitle("CTidyStudio")
         self.resize(1000, 700)
 
-        self.top_slice_view = SliceView(self.scan.voxel_size, Direction.Z_)
-        self.bot_slice_view = SliceView(self.scan.voxel_size, Direction.X)
+        self.top_slice_view = SliceView(self.scan.voxel_size, ViewOrientation.FRONT)
+        self.bot_slice_view = SliceView(self.scan.voxel_size, ViewOrientation.SIDE)
 
         self.top_slice_view.rotate_request.connect(self._on_rotate_request)
         self.bot_slice_view.rotate_request.connect(self._on_rotate_request)
@@ -112,11 +131,11 @@ class CTidyStudio(QMainWindow):
         self.top_slice_view.set_image(self.scan.data[:, :, self.slice_position[2]], False)
         self.bot_slice_view.set_image(self.scan.data[self.slice_position[0], :, :], False)
 
-    def _on_rotate_request(self, rotation_axis: Direction, rotation_point: QPointF) -> None:
-        self.scan.rot90(rotation_axis.value)
+    def _on_rotate_request(self, rotation_axis: CardinalDirection, rotation_point: QPointF) -> None:
+        self.scan.rot90(rotation_axis)
         self._update_ui_data()
         for view in (self.top_slice_view, self.bot_slice_view):
-            if view._view_direction.value in (rotation_axis.value, rotation_axis.value[::-1]):
+            if view.view_orientation.value in (rotation_axis.value, rotation_axis.value[::-1]):
                 view.centerOn(rotation_point)
     
 
@@ -131,15 +150,12 @@ class SliceView(QGraphicsView):
 
     rotate_request = Signal(tuple, QPointF)
 
-    def __init__(self, voxel_size: float, view_direction: Direction) -> None:
+    def __init__(self, voxel_size: float, view_orientation: ViewOrientation) -> None:
         super().__init__()
-
-        if view_direction not in {Direction.Z_, Direction.X}:
-            raise ValueError(f"Unsupported direction: {view_direction}")
 
         self.image: np.ndarray | None = None
         self._voxel_size = voxel_size
-        self._view_direction = view_direction
+        self.view_orientation = view_orientation
 
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
@@ -215,7 +231,7 @@ class SliceView(QGraphicsView):
         
         self.image = image
 
-        if self._view_direction == Direction.X_:
+        if self.view_orientation == ViewOrientation.FRONT:
             image = image.T
 
         image = np.ascontiguousarray(np.flipud(image))
@@ -394,7 +410,7 @@ class SliceView(QGraphicsView):
         view_center_pixmap = self._pixmap_item.mapFromScene(self.mapToScene(self.viewport().rect().center()))
         rotated_view_center = _rotate_pixmap_point_90(view_center_pixmap, self._pixmap_item.pixmap().width(), self._pixmap_item.pixmap().height(), clockwise)
 
-        direction = self._view_direction if clockwise else -self._view_direction
+        direction = self.view_orientation.forward if clockwise else -self.view_orientation.forward
 
         self.rotate_request.emit(direction, rotated_view_center)
 
