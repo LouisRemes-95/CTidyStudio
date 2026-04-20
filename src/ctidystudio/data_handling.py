@@ -6,13 +6,20 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 
-class CardinalDirection(tuple[int, int, int], Enum):
-    X = (1, 0, 0)
-    Y = (0, 1, 0)
-    Z = (0, 0, 1)
+class CardinalDirection(Enum):
+    X  = (1, 0, 0)
+    Y  = (0, 1, 0)
+    Z  = (0, 0, 1)
     X_ = (-1, 0, 0)
     Y_ = (0, -1, 0)
     Z_ = (0, 0, -1)
+
+    def __init__(self, x: int, y: int, z: int):
+        self._vec = np.array((x, y, z), dtype=int)
+
+    @property
+    def vec(self):
+        return self._vec
 
     def __neg__(self) -> "CardinalDirection":
         opposites = {
@@ -50,10 +57,13 @@ class CardinalDirection(tuple[int, int, int], Enum):
 
 class Orientation:
     def __init__(self, forward: CardinalDirection, up: CardinalDirection) -> None:
-        if sum(a * b for a, b in zip(forward.value, up.value)) != 0:
+        if np.dot(forward.vec, up.vec) != 0:
             raise ValueError("forward and up must be perpendicular")
         self.forward = forward
         self.up = up
+
+    def _compute_right(self) -> None:
+        self.right = CardinalDirection(tuple(np.cross(self.forward.vec, self.up.vec)))
 
 
 class Scan:
