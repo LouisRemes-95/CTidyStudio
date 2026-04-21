@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem,
     QGraphicsEllipseItem,
     QFrame,
+    QTextEdit,
 )
 from PySide6.QtGui import (
     QImage,
@@ -531,10 +532,61 @@ class SliceView(QGraphicsView):
 
 
 class IncrementationWidget(QWidget):
-    def __init__(self, getter: Callable, setter: Callable, adder: Callable) -> None:
+    class IncreaseButton(QPushButton):
+        def __init__(self, increment: int, adder: Callable[[int], None], parent: QObject = None) -> None:
+            super().__init__(parent)
+
+            self.increment = increment
+            self.adder = adder
+
+            self.clicked.connect(lambda: self.adder(self.increment))
+
+    def __init__(self, getter: Callable, setter: Callable, adder: Callable, parent: QObject = None) -> None:
+        super().__init__(parent)
+
         self.getter = getter
         self.setter = setter
         self.adder = adder
+
+        self._build_dependencies()
+
+    def _build_dependencies(self) -> None:
+        self.decrease_100_btn = self.IncreaseButton(-100, self.adder, parent = self)
+        self.decrease_10_btn = self.IncreaseButton(-10, self.adder, parent = self)
+        self.decrease_1_btn = self.IncreaseButton(-1, self.adder, parent = self)
+        self.editable_display = QTextEdit()
+        self.editable_display.setPlaceholderText(str(self.getter()))
+        self.increase_100_btn = self.IncreaseButton(100, self.adder, parent = self)
+        self.increase_10_btn = self.IncreaseButton(10, self.adder, parent = self)
+        self.increase_1_btn = self.IncreaseButton(1, self.adder, parent = self)
+
+        layout = QHBoxLayout(self)
+        layout.setSpacing(10)
+        layout.addWidget(self.decrease_100_btn)
+        layout.addWidget(self.decrease_10_btn)
+        layout.addWidget(self.decrease_1_btn)
+        layout.addWidget(self.editable_display)
+        layout.addWidget(self.increase_100_btn)
+        layout.addWidget(self.increase_10_btn)
+        layout.addWidget(self.increase_1_btn)
+
+        self.setStyleSheet("""
+            #controlPanel {
+                background-color: #2b2b2b;
+                border: 1px solid white;
+                border-radius: 12px;
+            }
+
+            QTextEdit {
+                background-color: #1e1e1e;
+                color: white;
+                border: 1px solid #555;
+                border-radius: 8px;
+                padding: 6px;
+            }
+        """)
+
+
 
 
 class Mode(str, Enum):
