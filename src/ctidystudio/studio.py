@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QGraphicsLineItem,
     QGraphicsRectItem,
     QGraphicsEllipseItem,
+    QFrame,
 )
 from PySide6.QtGui import (
     QImage,
@@ -137,15 +138,29 @@ class CTidyStudio(QMainWindow):
         main_container = QWidget()
         self.setCentralWidget(main_container)
         main_layout = QHBoxLayout(main_container)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
 
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(10)
 
         left_layout.addWidget(self.top_slice_view, 1)
         left_layout.addWidget(self.bot_slice_view, 1)
 
-        right_container = QWidget()
+        right_container = QFrame()
+        right_container.setObjectName("rightFrame")
+
+        right_container.setStyleSheet("""
+        #rightFrame {
+            background-color: #2b2b2b;
+            border-radius: 15px;
+            border: 1px solid #696969;
+        }
+        """)
+
+        right_layout = QVBoxLayout(right_container)
 
         main_layout.addWidget(left_container, 2)
         main_layout.addWidget(right_container, 1)
