@@ -115,7 +115,7 @@ class AppState(QObject):
 
         self._doi.rotate_and_translate(rotation_axis, previous_center, self._scan.center)
 
-    def create_getter(self, attr_name: str) -> Callable[[], Any]:
+    def _create_getter(self, attr_name: str) -> Callable[[], Any]:
         def getter() -> Any:
             obj = self
 
@@ -126,7 +126,7 @@ class AppState(QObject):
         
         return getter
     
-    def create_setter(self, attr_path: str, signal: Signal = None) -> Callable[[Any], None]:
+    def _create_setter(self, attr_path: str, signal: Signal = None) -> Callable[[Any], None]:
         def setter(value) -> None:
             obj = self
             parts = attr_path.split(".")
@@ -141,16 +141,18 @@ class AppState(QObject):
 
         return setter
     
-    def create_adder(self, attr_name: str, signal: Signal = None) -> Callable[[int], None]:
-        getter = self.create_getter(attr_name)
-        setter = self.create_setter(attr_name, signal)
+    def _create_adder(self, attr_name: str, signal: Signal = None) -> Callable[[int], None]:
+        getter = self._create_getter(attr_name)
+        setter = self._create_setter(attr_name, signal)
 
         def adder(value: int) -> None:
             setter(getter() + value)
 
         return adder
         
-
+    def create_attr_controls(self, attr_name: str, signal: Signal = None
+                             ) -> tuple[Callable[[], Any], Callable[[Any], None], Callable[[int], None]]:
+        return self._create_getter(attr_name), self._create_setter(attr_name, signal), self._create_adder(attr_name, signal)
 
 class CTidyStudio(QMainWindow):
     def __init__(self, scan: Scan) -> None:
@@ -526,6 +528,13 @@ class SliceView(QGraphicsView):
         self._view_center = view_to_pixmap_coord(rotated_view_center_coord, view_orientation, self._pixmap_item.boundingRect().height())
 
         self._center_view()
+
+
+class IncrementationWidget(QWidget):
+    def __init__(self, getter: Callable, setter: Callable, adder: Callable) -> None:
+        self.getter = getter
+        self.setter = setter
+        self.adder = adder
 
 
 class Mode(str, Enum):
