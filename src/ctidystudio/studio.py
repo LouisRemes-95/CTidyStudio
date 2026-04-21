@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 from enum import Enum
-from typing import Final, Callable
+from typing import Final, Callable, Any
 import math
 
 import numpy as np
@@ -114,6 +114,42 @@ class AppState(QObject):
         self._scan.rot90(rotation_axis)
 
         self._doi.rotate_and_translate(rotation_axis, previous_center, self._scan.center)
+
+    def create_getter(self, attr_name: str) -> Callable[[], Any]:
+        def getter() -> Any:
+            obj = self
+
+            for part in attr_name.split("."):
+                obj = getattr(obj, part)
+
+            return obj
+        
+        return getter
+    
+    def create_setter(self, attr_path: str, signal: Signal = None) -> Callable[[Any], None]:
+        def setter(value) -> None:
+            obj = self
+            parts = attr_path.split(".")
+
+            for part in parts[:-1]:
+                obj = getattr(obj, part)
+
+            setattr(obj, parts[-1], value)
+
+            if signal is not None:
+                signal.emit()
+
+        return setter
+    
+    def create_adder(self, attr_name: str, signal: Signal = None) -> Callable[[int], None]:
+        getter = self.create_getter(attr_name)
+        setter = self.create_setter(attr_name, signal)
+
+        def adder(value: int) -> None:
+            setter(getter() + value)
+
+        return adder
+        
 
 
 class CTidyStudio(QMainWindow):

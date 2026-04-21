@@ -108,30 +108,21 @@ class Scan:
         slc[axis] = index
         return self.data[tuple(slc)]
 
+
 class DomainOfInterest:
     def __init__(self, shape: tuple[int, int, int]) -> None:
         self._origin = np.array([0, 0, 0])
-        self._extend_vectors = np.array([[shape[0]-1, 0, 0], [0, shape[1]-1, 0], [0, 0, shape[2]-1]])
+        self._opposit_point = np.array([shape[0]-1, shape[1]-1, shape[2]-1])
 
     def rotate_and_translate(self, direction: CardinalDirection, source_pivot: np.ndarray, target_pivot: np.ndarray) -> None:
-
-        rotation = R.from_euler(**direction.rotation())
-        
         self._origin = np.rint(rotate_and_translate_point(self._origin, direction, source_pivot, target_pivot))
-        self._extend_vectors = np.rint(rotation.apply(self._extend_vectors))
+        self._opposit_point = np.rint(rotate_and_translate_point(self._opposit_point, direction, source_pivot, target_pivot))
 
     def view_box(self, orientation: Orientation, pixmap_height: int) -> QRect:
-        origin_pixmap_coord = view_to_pixmap_coord(self._origin, orientation, pixmap_height)
+        origin_pixmap_coord = view_to_pixmap_coord(self._origin, orientation, pixmap_height).toPoint()
+        opposit_pixmap_coord = view_to_pixmap_coord(self._opposit_point, orientation, pixmap_height).toPoint()
 
-        width = self._extend_vectors @ orientation.right.vec[:,None]
-        assert np.count_nonzero(width) == 1
-        width = width[width != 0][0]
-
-        height = self._extend_vectors @ orientation.up.vec[:,None]
-        assert np.count_nonzero(height) == 1
-        height = height[height != 0][0]
-
-        return QRect(origin_pixmap_coord.x(), origin_pixmap_coord.y(), width, -height)
+        return QRect(origin_pixmap_coord, opposit_pixmap_coord)
     
 
 def rotate_and_translate_point(point: np.ndarray, direction: CardinalDirection, source_pivot: np.ndarray, target_pivot: np.ndarray) -> np.ndarray:
