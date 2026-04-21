@@ -117,11 +117,11 @@ class DomainOfInterest:
 
         rotation = R.from_euler(**direction.rotation())
         
-        self._origin = rotate_and_translate_point(self._origin, direction, source_pivot, target_pivot)
-        self._extend_vectors = rotation.apply(self._extend_vectors).astype(int)
+        self._origin = np.rint(rotate_and_translate_point(self._origin, direction, source_pivot, target_pivot))
+        self._extend_vectors = np.rint(rotation.apply(self._extend_vectors))
 
     def view_box(self, orientation: Orientation, pixmap_height: int) -> QRect:
-        h_pos, v_pos = view_to_pixmap_coord(self._origin, orientation, pixmap_height)
+        origin_pixmap_coord = view_to_pixmap_coord(self._origin, orientation, pixmap_height)
 
         width = self._extend_vectors @ orientation.right.vec[:,None]
         assert np.count_nonzero(width) == 1
@@ -131,7 +131,7 @@ class DomainOfInterest:
         assert np.count_nonzero(height) == 1
         height = height[height != 0][0]
 
-        return QRect(h_pos, v_pos, width, -height)
+        return QRect(origin_pixmap_coord.x(), origin_pixmap_coord.y(), width, -height)
     
 
 def rotate_and_translate_point(point: np.ndarray, direction: CardinalDirection, source_pivot: np.ndarray, target_pivot: np.ndarray) -> np.ndarray:
@@ -140,11 +140,11 @@ def rotate_and_translate_point(point: np.ndarray, direction: CardinalDirection, 
 
     rotation = R.from_euler(**direction.rotation())
 
-    return (rotation.apply((point - source_pivot)) + target_pivot).astype(int)
+    return (rotation.apply((point - source_pivot)) + target_pivot)
 
 
-def view_to_pixmap_coord(point: np.ndarray, orientation: Orientation, pixmap_height: int) -> tuple[int, int]:
-    return np.dot(orientation.right.vec, point), pixmap_height - np.dot(orientation.up.vec, point)
+def view_to_pixmap_coord(point: np.ndarray, orientation: Orientation, pixmap_height: int) -> QPointF:
+    return QPointF(np.dot(orientation.right.vec, point), pixmap_height - np.dot(orientation.up.vec, point))
 
 
 def pixmap_to_view_coord(point: QPointF, orientation: Orientation, pixmap_height: int, slice_index: int) -> np.ndarray:

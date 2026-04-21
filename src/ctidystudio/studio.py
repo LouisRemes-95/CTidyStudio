@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
     QGraphicsLineItem,
     QGraphicsRectItem,
+    QGraphicsEllipseItem,
 )
 from PySide6.QtGui import (
     QImage,
@@ -32,6 +33,7 @@ from PySide6.QtGui import (
     QPen,
     QFont,
     QColor,
+    QBrush,
 )
 from rich.live import Live
 from rich.text import Text
@@ -84,7 +86,6 @@ class AppState(QObject):
         self._scan = scan
         self._doi = DomainOfInterest(scan.shape)
         self._slice_pos = np.array([0, 0, 0])
-        self._rotation_center = np.array([0, 0, 0])
 
     @property
     def scan(self):
@@ -113,8 +114,6 @@ class AppState(QObject):
 
         self._doi.rotate_and_translate(rotation_axis, previous_center, self._scan.center)
 
-        self._rotation_center = rotate_and_translate_point(self.view_center, rotation_axis, previous_center, self._scan.center)
-
 
 class CTidyStudio(QMainWindow):
     def __init__(self, scan: Scan) -> None:
@@ -124,8 +123,6 @@ class CTidyStudio(QMainWindow):
 
         self._build_slice_views()
         self._build_ui()
-
-        # self._update_ui_data()
     
     def _build_slice_views(self):
 
@@ -152,23 +149,6 @@ class CTidyStudio(QMainWindow):
 
         main_layout.addWidget(left_container, 2)
         main_layout.addWidget(right_container, 1)
-
-    # def _update_ui_data(self) -> None:
-    #     self.top_slice_view.set_image(self.scan.data[:, :, self.slice_position[2]], False)
-    #     self.bot_slice_view.set_image(self.scan.data[self.slice_position[0], :, :], False)
-
-    #     self.top_slice_view._draw_doi()
-    #     self.bot_slice_view._draw_doi()
-
-    # def _on_rotate_request(self, rotation_axis: CardinalDirection, rotation_point: QPointF) -> None:
-    #     self.doi.rotate_around(self.scan.center, rotation_axis)
-    #     self.doi._origin -= self.scan.center
-    #     self.scan.rot90(rotation_axis)
-    #     self.doi._origin += self.scan.center
-    #     self._update_ui_data()
-    #     for view in (self.top_slice_view, self.bot_slice_view):
-    #         if view.view_orientation.value in (rotation_axis.value, rotation_axis.value[::-1]):
-    #             view.centerOn(rotation_point)
 
 
 class ViewOrientation(Enum):
@@ -199,8 +179,9 @@ class SliceView(QGraphicsView):
         super().__init__()
 
         self.app_state = app_state
-
         self._view_orientation = view_orientation
+
+        self._view_center = QPointF(0, 0)
 
         self._build_view()
         self._build_dependencies()
@@ -225,8 +206,8 @@ class SliceView(QGraphicsView):
         self._pixmap_item = QGraphicsPixmapItem()
         self.scene.addItem(self._pixmap_item)
 
-        self._rotate_cw_btn = self._create_overlay_button("⟳", lambda: self._emit_rotation_request(True))
-        self._rotate_ccw_btn = self._create_overlay_button("⟲", lambda: self._emit_rotation_request(False))
+        self._rotate_cw_btn = self._create_overlay_button("⟳", lambda: self._on_rotation_btn_clicked(True))
+        self._rotate_ccw_btn = self._create_overlay_button("⟲", lambda: self._on_rotation_btn_clicked(False))
 
         self._build_doi_item()
 
@@ -293,6 +274,8 @@ class SliceView(QGraphicsView):
 
         if not crop_only or (fit_scale > 1):
             self.scale(fit_scale, fit_scale)
+        
+        self._update_view_center()
 
     def drawForeground(self, painter, rect) -> None:
         super().drawForeground(painter, rect)
@@ -387,10 +370,12 @@ class SliceView(QGraphicsView):
 
         self._fit_view(True)
         self._center_view()
+
+    def _update_view_center(self):
+        self._view_center = self._pixmap_item.mapFromScene(self.mapToScene(self.viewport().rect().center()))
     
     def _center_view(self) -> None:
-        center = view_to_pixmap_coord(self.app_state._rotation_center, self._view_orientation.value, self._pixmap_item.boundingRect().height())
-        self.centerOn(*center)
+        self.centerOn(self._view_center)
     
     def _update_doi_view(self):
         self._doi_item.setRect(self.app_state.doi.view_box(self._view_orientation.value, self._pixmap_item.boundingRect().height()))
@@ -418,6 +403,7 @@ class SliceView(QGraphicsView):
 
             event.accept()
             self.viewport().update()
+            self._update_view_center()
             return
 
         super().mouseMoveEvent(event)
@@ -475,14 +461,20 @@ class SliceView(QGraphicsView):
 
         return btn
 
-    def _emit_rotation_request(self, clockwise: bool) -> None:
-        view_center = self._pixmap_item.mapFromScene(self.mapToScene(self.viewport().rect().center()))
-        slice_index = np.dot(self.app_state.slice_pos, self._view_orientation.forward.vec)
-        self.app_state._rotation_center = pixmap_to_view_coord(view_center, self._view_orientation.value, self._pixmap_item.boundingRect().height(), slice_index)
+    def _on_rotation_btn_clicked(self, clockwise: bool) -> None:
+        view_orientation = self._view_orientation.value
+        direction = view_orientation.forward if clockwise else -view_orientation.forward
 
-        direction = self._view_orientation.forward if clockwise else -self._view_orientation.forward
+        slice_index = np.dot(self.app_state.slice_pos, view_orientation.forward.vec)
+        view_center_coord = pixmap_to_view_coord(self._view_center, view_orientation, self._pixmap_item.boundingRect().height(), slice_index)
+        previous_scan_center = self.app_state.scan.center
 
         self.rotation_request.emit(direction)
+
+        rotated_view_center_coord = rotate_and_translate_point(view_center_coord, direction, previous_scan_center, self.app_state.scan.center)
+        self._view_center = view_to_pixmap_coord(rotated_view_center_coord, view_orientation, self._pixmap_item.boundingRect().height())
+
+        self._center_view()
 
 
 class Mode(str, Enum):
