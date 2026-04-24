@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem,
     QGraphicsEllipseItem,
     QFrame,
-    QTextEdit,
+    QLineEdit,
     QLabel,
 )
 from PySide6.QtGui import (
@@ -130,8 +130,12 @@ class AppState(QObject):
 
         return setter
     
-    def move_doi_origin(self, local_move_direction: CardinalDirection, increment: int) -> None:
+    def on_move_doi_origin_request(self, local_move_direction: CardinalDirection, increment: int) -> None:
         self._doi.move_origin(local_move_direction, increment)
+        self.doi_changed.emit()
+
+    def on_set_doi_origin_request(self, local_set_direction: CardinalDirection, value: int) -> None:
+        self._doi.set_origin_component(local_set_direction, value)
         self.doi_changed.emit()
 
 
@@ -179,8 +183,13 @@ class CTidyStudio(QMainWindow):
         """)
 
         right_layout = QVBoxLayout(right_container)
-        increment_button = IncrementationWidget(right_container)
-        increment_button.increment_requested.connect(partial(self.app_state.move_doi_origin, CardinalDirection.X))
+        increment_button = IncrementControl(right_container)
+        increment_button.increment_requested.connect(partial(self.app_state.on_move_doi_origin_request, CardinalDirection.X))
+        increment_button.value_submitted.connect(partial(self.app_state.on_set_doi_origin_request, CardinalDirection.X))
+        increment_button.editable_display.setText(str(self.app_state.doi.origin[0]))
+        self.app_state.doi_changed.connect(lambda: increment_button.editable_display.setText(str(self.app_state.doi.origin[0])))
+        increment_button.editable_display.setFixedWidth(increment_button.fontMetrics().horizontalAdvance(str(np.max(self.app_state.scan.shape) - 1)) + 24)
+
         right_layout.addWidget(increment_button, 1)
 
         main_layout.addWidget(left_container, 2)
@@ -515,35 +524,56 @@ class SliceView(QGraphicsView):
         self._center_view()
 
 
-class IncrementationWidget(QWidget):
+class IncrementControl(QWidget):
     increment_requested = Signal(int)
+    value_submitted = Signal(int)
 
     def __init__(self, parent: QObject = None) -> None:
         super().__init__(parent)
 
         self._build_dependencies()
         
-    class IncreaseButton(QPushButton):
-        def __init__(self, increment: int, parent: QObject = None) -> None:
-            super().__init__(parent)
+    class IncrementButton(QPushButton):
+        def __init__(self, text: str, increment: int, parent: QObject = None) -> None:
+            super().__init__(text, parent)
 
             self.increment = increment
+
+            self.setCursor(Qt.PointingHandCursor)
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: #3a3a3a;
+                    color: white;
+                    border: 1px solid #666;
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }
+                QPushButton:hover {
+                    background-color: #4a6fa5;
+                    border: 1px solid #7aa2d6;
+                }
+                QPushButton:pressed {
+                    background-color: #34527a;
+                }
+            """)
 
             self.clicked.connect(self._on_clicked)
 
         def _on_clicked(self):
             self.parent().increment_requested.emit(self.increment)
 
-
     def _build_dependencies(self) -> None:
-        self.decrease_100_btn = self.IncreaseButton(-100, parent=self)
-        self.decrease_10_btn = self.IncreaseButton(-10, parent=self)
-        self.decrease_1_btn = self.IncreaseButton(-1, parent=self)
-        self.editable_display = QTextEdit()
+        self.decrease_100_btn = self.IncrementButton("-100", -100, parent=self)
+        self.decrease_10_btn = self.IncrementButton("-10", -10, parent=self)
+        self.decrease_1_btn = self.IncrementButton("-1", -1, parent=self)
+
+        self.editable_display = QLineEdit()
         self.editable_display.setPlaceholderText("value")
-        self.increase_1_btn = self.IncreaseButton(1, parent=self)
-        self.increase_10_btn = self.IncreaseButton(10, parent=self)
-        self.increase_100_btn = self.IncreaseButton(100, parent=self)
+        self.editable_display.returnPressed.connect(self._on_value_submitted)
+
+        self.increase_1_btn = self.IncrementButton("+1", 1, parent=self)
+        self.increase_10_btn = self.IncrementButton("+10", 10, parent=self)
+        self.increase_100_btn = self.IncrementButton("+100", 100, parent=self)
 
         layout = QHBoxLayout(self)
         layout.setSpacing(10)
@@ -561,16 +591,24 @@ class IncrementationWidget(QWidget):
                 border: 1px solid white;
                 border-radius: 12px;
             }
-
-            QTextEdit {
-                background-color: #1e1e1e;
+            QLineEdit {
+                background-color: #3a3a3a;
                 color: white;
-                border: 1px solid #555;
-                border-radius: 8px;
-                padding: 6px;
+                border: 1px solid #666;
+                border-radius: 6px;
+                padding: 6px 10px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #7aa2d6;
             }
         """)
 
+    def _on_value_submitted(self) -> None:
+        text = self.editable_display.text().strip()
+        if not text:
+            return
+
+        self.value_submitted.emit(int(text))
 
 class Mode(str, Enum):
     RESET = "reset"

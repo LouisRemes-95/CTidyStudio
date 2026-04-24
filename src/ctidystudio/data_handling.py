@@ -17,10 +17,15 @@ class CardinalDirection(Enum):
 
     def __init__(self, x: int, y: int, z: int):
         self._vec = np.array((x, y, z), dtype=int)
+        self._direction_index = np.nonzero(self._vec)[0][0]
 
     @property
     def vec(self):
         return self._vec
+
+    @property
+    def dir(self):
+        return self._direction_index
 
     def __neg__(self) -> "CardinalDirection":
         opposites = {
@@ -141,6 +146,9 @@ class DomainOfInterest:
     def move_origin(self, local_move_direction: CardinalDirection, increment: int):
         movement = local_move_direction.vec @ self.local_ref
         self.origin = self.origin + movement.astype(int) * increment
+
+    def set_origin_component(self, local_move_direction: CardinalDirection, value: int):
+        self.origin[local_move_direction.vec @ self.local_ref == 1] = value
     
 
 def rotate_and_translate_point(point: np.ndarray, direction: CardinalDirection, source_pivot: np.ndarray, target_pivot: np.ndarray) -> np.ndarray:
