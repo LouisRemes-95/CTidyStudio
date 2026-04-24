@@ -4,7 +4,7 @@ from enum import Enum
 import tifffile
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from PySide6.QtCore import QRect, QPointF
+from PySide6.QtCore import QRect, QPoint
 
 
 class CardinalDirection(Enum):
@@ -111,18 +111,37 @@ class Scan:
 
 class DomainOfInterest:
     def __init__(self, shape: tuple[int, int, int]) -> None:
-        self._origin = np.array([0, 0, 0])
-        self._opposit_point = np.array([shape[0]-1, shape[1]-1, shape[2]-1])
+        self.origin = np.array([0, 0, 0])
+        self.opposit_point = np.array([shape[0]-1, shape[1]-1, shape[2]-1])
+        self.local_ref = np.array([[1, 0, 0], [0, 1, 0],[0, 0, 1]])
 
     def rotate_and_translate(self, direction: CardinalDirection, source_pivot: np.ndarray, target_pivot: np.ndarray) -> None:
-        self._origin = np.rint(rotate_and_translate_point(self._origin, direction, source_pivot, target_pivot))
-        self._opposit_point = np.rint(rotate_and_translate_point(self._opposit_point, direction, source_pivot, target_pivot))
+        self.origin = np.rint(rotate_and_translate_point(self.origin, direction, source_pivot, target_pivot))
+        self.opposit_point = np.rint(rotate_and_translate_point(self.opposit_point, direction, source_pivot, target_pivot))
+
+        rotation = R.from_euler(**direction.rotation())
+        self.local_ref = rotation.apply(self.local_ref)
 
     def view_box(self, orientation: Orientation, pixmap_height: int) -> QRect:
-        origin_pixmap_coord = view_to_pixmap_coord(self._origin, orientation, pixmap_height).toPoint()
-        opposit_pixmap_coord = view_to_pixmap_coord(self._opposit_point, orientation, pixmap_height).toPoint()
+        origin_pixmap_coord = view_to_pixmap_coord(self.origin, orientation, pixmap_height)
+        opposit_pixmap_coord = view_to_pixmap_coord(self.opposit_point, orientation, pixmap_height)
+
+        if origin_pixmap_coord.x() > opposit_pixmap_coord.x():
+            min_x = opposit_pixmap_coord.x()
+            opposit_pixmap_coord.setX(origin_pixmap_coord.x())
+            origin_pixmap_coord.setX(min_x)
+
+        if origin_pixmap_coord.y() > opposit_pixmap_coord.y():
+            min_x = opposit_pixmap_coord.y()
+            opposit_pixmap_coord.setY(origin_pixmap_coord.y())
+            origin_pixmap_coord.setY(min_x)
 
         return QRect(origin_pixmap_coord, opposit_pixmap_coord)
+    
+    def move_origin(self, local_move_direction: CardinalDirection, increment: int):
+        movement = local_move_direction.vec @ self.local_ref
+        self.origin = self.origin + movement.astype(int) * increment
+        print(self.origin)
     
 
 def rotate_and_translate_point(point: np.ndarray, direction: CardinalDirection, source_pivot: np.ndarray, target_pivot: np.ndarray) -> np.ndarray:
@@ -134,11 +153,11 @@ def rotate_and_translate_point(point: np.ndarray, direction: CardinalDirection, 
     return (rotation.apply((point - source_pivot)) + target_pivot)
 
 
-def view_to_pixmap_coord(point: np.ndarray, orientation: Orientation, pixmap_height: int) -> QPointF:
-    return QPointF(np.dot(orientation.right.vec, point), pixmap_height - np.dot(orientation.up.vec, point))
+def view_to_pixmap_coord(point: np.ndarray, orientation: Orientation, pixmap_height: int) -> QPoint:
+    return QPoint(np.dot(orientation.right.vec, point), pixmap_height - 1 - np.dot(orientation.up.vec, point))
 
 
-def pixmap_to_view_coord(point: QPointF, orientation: Orientation, pixmap_height: int, slice_index: int) -> np.ndarray:
+def pixmap_to_view_coord(point: QPoint, orientation: Orientation, pixmap_height: int, slice_index: int) -> np.ndarray:
     return point.x() * orientation.right.vec + (pixmap_height - point.y()) * orientation.up.vec + slice_index * orientation.forward.vec
 
 

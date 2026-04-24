@@ -3,6 +3,7 @@ from pathlib import Path
 from enum import Enum
 from typing import Final, Callable, Any
 import math
+from functools import partial
 
 import numpy as np
 from PySide6.QtCore import (
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QFrame,
     QTextEdit,
+    QLabel,
 )
 from PySide6.QtGui import (
     QImage,
@@ -116,44 +118,17 @@ class AppState(QObject):
 
         self._doi.rotate_and_translate(rotation_axis, previous_center, self._scan.center)
 
-    def _create_getter(self, attr_name: str) -> Callable[[], Any]:
-        def getter() -> Any:
-            obj = self
-
-            for part in attr_name.split("."):
-                obj = getattr(obj, part)
-
-            return obj
-        
-        return getter
+    def create_getter(self, attr_name: str) -> Callable[[], Any]:
+        return lambda: getattr(self, attr_name)
     
-    def _create_setter(self, attr_path: str, signal: Signal = None) -> Callable[[Any], None]:
-        def setter(value) -> None:
-            obj = self
-            parts = attr_path.split(".")
-
-            for part in parts[:-1]:
-                obj = getattr(obj, part)
-
-            setattr(obj, parts[-1], value)
+    def create_setter(self, attr_path: str, signal: Signal = None) -> Callable[[Any], None]:
+        def setter(value: any) -> None:
+            setattr(self, attr_path, value)
 
             if signal is not None:
                 signal.emit()
 
         return setter
-    
-    def _create_adder(self, attr_name: str, signal: Signal = None) -> Callable[[int], None]:
-        getter = self._create_getter(attr_name)
-        setter = self._create_setter(attr_name, signal)
-
-        def adder(value: int) -> None:
-            setter(getter() + value)
-
-        return adder
-        
-    def create_attr_controls(self, attr_name: str, signal: Signal = None
-                             ) -> tuple[Callable[[], Any], Callable[[Any], None], Callable[[int], None]]:
-        return self._create_getter(attr_name), self._create_setter(attr_name, signal), self._create_adder(attr_name, signal)
 
 class CTidyStudio(QMainWindow):
     def __init__(self, scan: Scan) -> None:
@@ -172,7 +147,6 @@ class CTidyStudio(QMainWindow):
     def _build_ui(self) -> None:
         self.setWindowTitle("CTidyStudio")
         self.resize(1000, 700)
-
 
         main_container = QWidget()
         self.setCentralWidget(main_container)
@@ -200,6 +174,11 @@ class CTidyStudio(QMainWindow):
         """)
 
         right_layout = QVBoxLayout(right_container)
+        increment_button = IncrementationWidget(self.app_state.create_getter("_doi"),
+                                                self.app_state.create_setter("_doi", self.app_state.doi_changed),
+                                                partial(DomainOfInterest.move_origin, local_move_direction = CardinalDirection.X),
+                                                right_container)
+        right_layout.addWidget(increment_button, 1)
 
         main_layout.addWidget(left_container, 2)
         main_layout.addWidget(right_container, 1)
@@ -267,7 +246,7 @@ class SliceView(QGraphicsView):
 
     def _build_doi_item(self) -> None:
         self._doi_item = QGraphicsRectItem(parent=self._pixmap_item)
-        self._doi_item.setPen(QPen(Qt.red, 2))
+        self._doi_item.setPen(QPen(Qt.red, 1))
         self._doi_item.setZValue(10)
     
     def _build_conections(self):
@@ -433,6 +412,8 @@ class SliceView(QGraphicsView):
     
     def _update_doi_view(self):
         self._doi_item.setRect(self.app_state.doi.view_box(self._view_orientation.value, self._pixmap_item.boundingRect().height()))
+        self._doi_item.update()
+        self.viewport().update()
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.RightButton:
@@ -532,43 +513,50 @@ class SliceView(QGraphicsView):
 
 
 class IncrementationWidget(QWidget):
-    class IncreaseButton(QPushButton):
-        def __init__(self, increment: int, adder: Callable[[int], None], parent: QObject = None) -> None:
-            super().__init__(parent)
-
-            self.increment = increment
-            self.adder = adder
-
-            self.clicked.connect(lambda: self.adder(self.increment))
-
-    def __init__(self, getter: Callable, setter: Callable, adder: Callable, parent: QObject = None) -> None:
+    def __init__(self, getter: Callable, setter: Callable, handler: Callable, parent: QObject = None) -> None:
         super().__init__(parent)
 
         self.getter = getter
         self.setter = setter
-        self.adder = adder
+        self.handler = handler
 
         self._build_dependencies()
+        
+    class IncreaseButton(QPushButton):
+        def __init__(self, getter: Callable, setter: Callable, handler: Callable, parent: QObject = None) -> None:
+            super().__init__(parent)
+
+            self.getter = getter
+            self.setter = setter
+            self.handler = handler
+
+            self.clicked.connect(self._on_clicked)
+
+        def _on_clicked(self):
+            variable = self.getter()
+            self.handler(variable)
+            self.setter(variable)
+
 
     def _build_dependencies(self) -> None:
-        self.decrease_100_btn = self.IncreaseButton(-100, self.adder, parent = self)
-        self.decrease_10_btn = self.IncreaseButton(-10, self.adder, parent = self)
-        self.decrease_1_btn = self.IncreaseButton(-1, self.adder, parent = self)
+        self.decrease_100_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = -100), parent = self)
+        self.decrease_10_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = -10), parent = self)
+        self.decrease_1_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = -1), parent = self)
         self.editable_display = QTextEdit()
         self.editable_display.setPlaceholderText(str(self.getter()))
-        self.increase_100_btn = self.IncreaseButton(100, self.adder, parent = self)
-        self.increase_10_btn = self.IncreaseButton(10, self.adder, parent = self)
-        self.increase_1_btn = self.IncreaseButton(1, self.adder, parent = self)
+        self.increase_1_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = 1), parent = self)
+        self.increase_10_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = 10), parent = self)
+        self.increase_100_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = 100), parent = self)
 
         layout = QHBoxLayout(self)
         layout.setSpacing(10)
-        layout.addWidget(self.decrease_100_btn)
-        layout.addWidget(self.decrease_10_btn)
-        layout.addWidget(self.decrease_1_btn)
-        layout.addWidget(self.editable_display)
-        layout.addWidget(self.increase_100_btn)
-        layout.addWidget(self.increase_10_btn)
-        layout.addWidget(self.increase_1_btn)
+        layout.addWidget(self.decrease_100_btn, 1)
+        layout.addWidget(self.decrease_10_btn, 1)
+        layout.addWidget(self.decrease_1_btn, 1)
+        layout.addWidget(self.editable_display, 1)
+        layout.addWidget(self.increase_1_btn, 1)
+        layout.addWidget(self.increase_10_btn, 1)
+        layout.addWidget(self.increase_100_btn, 1)
 
         self.setStyleSheet("""
             #controlPanel {
@@ -585,8 +573,6 @@ class IncrementationWidget(QWidget):
                 padding: 6px;
             }
         """)
-
-
 
 
 class Mode(str, Enum):
