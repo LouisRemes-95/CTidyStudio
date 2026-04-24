@@ -141,7 +141,6 @@ class DomainOfInterest:
     def move_origin(self, local_move_direction: CardinalDirection, increment: int):
         movement = local_move_direction.vec @ self.local_ref
         self.origin = self.origin + movement.astype(int) * increment
-        print(self.origin)
     
 
 def rotate_and_translate_point(point: np.ndarray, direction: CardinalDirection, source_pivot: np.ndarray, target_pivot: np.ndarray) -> np.ndarray:

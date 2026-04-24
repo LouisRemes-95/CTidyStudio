@@ -129,6 +129,11 @@ class AppState(QObject):
                 signal.emit()
 
         return setter
+    
+    def move_doi_origin(self, local_move_direction: CardinalDirection, increment: int) -> None:
+        self._doi.move_origin(local_move_direction, increment)
+        self.doi_changed.emit()
+
 
 class CTidyStudio(QMainWindow):
     def __init__(self, scan: Scan) -> None:
@@ -174,10 +179,8 @@ class CTidyStudio(QMainWindow):
         """)
 
         right_layout = QVBoxLayout(right_container)
-        increment_button = IncrementationWidget(self.app_state.create_getter("_doi"),
-                                                self.app_state.create_setter("_doi", self.app_state.doi_changed),
-                                                partial(DomainOfInterest.move_origin, local_move_direction = CardinalDirection.X),
-                                                right_container)
+        increment_button = IncrementationWidget(right_container)
+        increment_button.increment_requested.connect(partial(self.app_state.move_doi_origin, CardinalDirection.X))
         right_layout.addWidget(increment_button, 1)
 
         main_layout.addWidget(left_container, 2)
@@ -513,40 +516,34 @@ class SliceView(QGraphicsView):
 
 
 class IncrementationWidget(QWidget):
-    def __init__(self, getter: Callable, setter: Callable, handler: Callable, parent: QObject = None) -> None:
-        super().__init__(parent)
+    increment_requested = Signal(int)
 
-        self.getter = getter
-        self.setter = setter
-        self.handler = handler
+    def __init__(self, parent: QObject = None) -> None:
+        super().__init__(parent)
 
         self._build_dependencies()
         
     class IncreaseButton(QPushButton):
-        def __init__(self, getter: Callable, setter: Callable, handler: Callable, parent: QObject = None) -> None:
+        def __init__(self, increment: int, parent: QObject = None) -> None:
             super().__init__(parent)
 
-            self.getter = getter
-            self.setter = setter
-            self.handler = handler
+            self.increment = increment
 
             self.clicked.connect(self._on_clicked)
 
         def _on_clicked(self):
-            variable = self.getter()
-            self.handler(variable)
-            self.setter(variable)
+            self.parent().increment_requested.emit(self.increment)
 
 
     def _build_dependencies(self) -> None:
-        self.decrease_100_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = -100), parent = self)
-        self.decrease_10_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = -10), parent = self)
-        self.decrease_1_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = -1), parent = self)
+        self.decrease_100_btn = self.IncreaseButton(-100, parent=self)
+        self.decrease_10_btn = self.IncreaseButton(-10, parent=self)
+        self.decrease_1_btn = self.IncreaseButton(-1, parent=self)
         self.editable_display = QTextEdit()
-        self.editable_display.setPlaceholderText(str(self.getter()))
-        self.increase_1_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = 1), parent = self)
-        self.increase_10_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = 10), parent = self)
-        self.increase_100_btn = self.IncreaseButton(self.getter, self.setter, partial(self.handler, increment = 100), parent = self)
+        self.editable_display.setPlaceholderText("value")
+        self.increase_1_btn = self.IncreaseButton(1, parent=self)
+        self.increase_10_btn = self.IncreaseButton(10, parent=self)
+        self.increase_100_btn = self.IncreaseButton(100, parent=self)
 
         layout = QHBoxLayout(self)
         layout.setSpacing(10)
