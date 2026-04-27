@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Final, Callable, Any
 import math
 from functools import partial
+from dataclasses import dataclass
 
 import numpy as np
 from PySide6.QtCore import (
@@ -191,17 +192,34 @@ class CTidyStudio(QMainWindow):
         """)
 
         right_layout = QVBoxLayout(right_container)
-        increment_button = IncrementControl(right_container)
-        increment_button.increment_requested.connect(partial(self.app_state.on_move_doi_origin_request, CardinalDirection.X))
-        increment_button.value_submitted.connect(partial(self.app_state.on_set_doi_origin_request, CardinalDirection.X))
-        # increment_button.editable_display.setText(str(self.app_state.doi.origin[0]))
-        self.app_state.doi_changed.connect(lambda: increment_button.editable_display.setText(str(self.app_state.doi.origin[0])))
-        increment_button.editable_display.setFixedWidth(increment_button.fontMetrics().horizontalAdvance(str(np.max(self.app_state.scan.shape) - 1)) + 24)
+
+        increment_button = self._build_right_Widget()
 
         right_layout.addWidget(increment_button, 1)
 
         main_layout.addWidget(left_container, 2)
         main_layout.addWidget(right_container, 1)
+
+    def _build_right_Widget(self) -> QWidget:
+        binding = IncrementControlBinding(partial(self.app_state.on_move_doi_origin_request, CardinalDirection.X),
+                                          partial(self.app_state.on_set_doi_origin_request, CardinalDirection.X),
+                                          self.app_state.doi_changed,
+                                          lambda: int(self.app_state.doi.origin[0]))
+        return self._create_increment_control(binding)
+
+    def _create_increment_control(self, binding: "IncrementControlBinding") -> "IncrementControl":
+        control = IncrementControl(self)
+
+        control.increment_requested.connect(binding.on_increment)
+        control.value_submitted.connect(binding.on_submit)
+
+        def refresh() -> None:
+            control.set_value(binding.read_value())
+        
+        binding.refresh_signal.connect(refresh)
+        refresh()
+
+        return control
 
 
 class ViewOrientation(Enum):
@@ -530,6 +548,14 @@ class SliceView(QGraphicsView):
         self._center_view()
 
 
+@dataclass(slots=True)
+class IncrementControlBinding:
+    on_increment: Callable[[int], None]
+    on_submit: Callable[[int], None]
+    refresh_signal: Signal
+    read_value: Callable[[], int]
+
+
 class IncrementControl(QWidget):
     increment_requested = Signal(int)
     value_submitted = Signal(int)
@@ -569,27 +595,27 @@ class IncrementControl(QWidget):
             self.parent().increment_requested.emit(self.increment)
 
     def _build_dependencies(self) -> None:
-        self.decrease_100_btn = self.IncrementButton("-100", -100, parent=self)
-        self.decrease_10_btn = self.IncrementButton("-10", -10, parent=self)
-        self.decrease_1_btn = self.IncrementButton("-1", -1, parent=self)
+        self._decrease_100_btn = self.IncrementButton("-100", -100, parent=self)
+        self._decrease_10_btn = self.IncrementButton("-10", -10, parent=self)
+        self._decrease_1_btn = self.IncrementButton("-1", -1, parent=self)
 
-        self.editable_display = QLineEdit()
-        self.editable_display.setPlaceholderText("value")
-        self.editable_display.returnPressed.connect(self._on_value_submitted)
+        self._editable_display = QLineEdit()
+        self._editable_display.setPlaceholderText("value")
+        self._editable_display.returnPressed.connect(self._on_value_submitted)
 
-        self.increase_1_btn = self.IncrementButton("+1", 1, parent=self)
-        self.increase_10_btn = self.IncrementButton("+10", 10, parent=self)
-        self.increase_100_btn = self.IncrementButton("+100", 100, parent=self)
+        self._increase_1_btn = self.IncrementButton("+1", 1, parent=self)
+        self._increase_10_btn = self.IncrementButton("+10", 10, parent=self)
+        self._increase_100_btn = self.IncrementButton("+100", 100, parent=self)
 
         layout = QHBoxLayout(self)
         layout.setSpacing(10)
-        layout.addWidget(self.decrease_100_btn, 1)
-        layout.addWidget(self.decrease_10_btn, 1)
-        layout.addWidget(self.decrease_1_btn, 1)
-        layout.addWidget(self.editable_display, 1)
-        layout.addWidget(self.increase_1_btn, 1)
-        layout.addWidget(self.increase_10_btn, 1)
-        layout.addWidget(self.increase_100_btn, 1)
+        layout.addWidget(self._decrease_100_btn, 1)
+        layout.addWidget(self._decrease_10_btn, 1)
+        layout.addWidget(self._decrease_1_btn, 1)
+        layout.addWidget(self._editable_display, 1)
+        layout.addWidget(self._increase_1_btn, 1)
+        layout.addWidget(self._increase_10_btn, 1)
+        layout.addWidget(self._increase_100_btn, 1)
 
         self.setStyleSheet("""
             #controlPanel {
@@ -610,11 +636,14 @@ class IncrementControl(QWidget):
         """)
 
     def _on_value_submitted(self) -> None:
-        text = self.editable_display.text().strip()
+        text = self._editable_display.text().strip()
         if not text:
             return
 
         self.value_submitted.emit(int(text))
+
+    def set_value(self, value: int) -> None:
+        self._editable_display.setText(str(value))
 
 class Mode(str, Enum):
     RESET = "reset"
