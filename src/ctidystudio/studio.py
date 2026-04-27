@@ -12,6 +12,7 @@ from PySide6.QtCore import (
     Signal,
     QPointF,
     QObject,
+    QTimer,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -107,6 +108,11 @@ class AppState(QObject):
     def view_center(self):
         return self._rotation_center
 
+    def fire_all_signals(self) -> None:
+        self.scan_changed.emit()
+        self.doi_changed.emit()
+        self.slice_changed.emit()
+
     def on_rotation_request(self, rotation_axis: CardinalDirection) -> None:
         self._apply_rotation(rotation_axis)
         self.scan_changed.emit()
@@ -147,6 +153,8 @@ class CTidyStudio(QMainWindow):
 
         self._build_slice_views()
         self._build_ui()
+
+        self.app_state.fire_all_signals()
     
     def _build_slice_views(self):
 
@@ -186,7 +194,7 @@ class CTidyStudio(QMainWindow):
         increment_button = IncrementControl(right_container)
         increment_button.increment_requested.connect(partial(self.app_state.on_move_doi_origin_request, CardinalDirection.X))
         increment_button.value_submitted.connect(partial(self.app_state.on_set_doi_origin_request, CardinalDirection.X))
-        increment_button.editable_display.setText(str(self.app_state.doi.origin[0]))
+        # increment_button.editable_display.setText(str(self.app_state.doi.origin[0]))
         self.app_state.doi_changed.connect(lambda: increment_button.editable_display.setText(str(self.app_state.doi.origin[0])))
         increment_button.editable_display.setFixedWidth(increment_button.fontMetrics().horizontalAdvance(str(np.max(self.app_state.scan.shape) - 1)) + 24)
 
@@ -269,9 +277,7 @@ class SliceView(QGraphicsView):
     def showEvent(self, event) -> None:
         super().showEvent(event)
         
-        self._update_scan_view()
-        self._update_doi_view()
-        self._fit_view()
+        self._fit_view(False)
     
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
