@@ -201,26 +201,23 @@ class CTidyStudio(QMainWindow):
         main_layout.addWidget(right_container, 1)
 
     def _build_right_Widget(self) -> QWidget:
-        binding = IncrementControlBinding(partial(self.app_state.on_move_doi_origin_request, CardinalDirection.X),
-                                          partial(self.app_state.on_set_doi_origin_request, CardinalDirection.X),
-                                          self.app_state.doi_changed,
-                                          lambda: int(self.app_state.doi.origin[0]))
-        return self._create_increment_control(binding)
+        return self._create_increment_control(self._bind_doi_origin(CardinalDirection.X))
 
     def _create_increment_control(self, binding: "IncrementControlBinding") -> "IncrementControl":
         control = IncrementControl(self)
 
         control.increment_requested.connect(binding.on_increment)
         control.value_submitted.connect(binding.on_submit)
-
-        def refresh() -> None:
-            control.set_value(binding.read_value())
         
-        binding.refresh_signal.connect(refresh)
-        refresh()
+        binding.refresh_signal.connect(lambda: control.set_value(binding.read_value()))
 
         return control
 
+    def _bind_doi_origin(self, direction: CardinalDirection) -> "IncrementControlBinding":
+        return IncrementControlBinding(partial(self.app_state.on_move_doi_origin_request, direction),
+                                       partial(self.app_state.on_set_doi_origin_request, direction),
+                                       self.app_state.doi_changed,
+                                       lambda: int(self.app_state.doi.origin[direction.dir]))
 
 class ViewOrientation(Enum):
     FRONT = Orientation(CardinalDirection.Z_, CardinalDirection.Y)
