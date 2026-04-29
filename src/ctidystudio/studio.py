@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
     QPushButton,
     QGraphicsDropShadowEffect,
+    QGraphicsLineItem,
 )
 from PySide6.QtGui import (
     QColor,
@@ -31,7 +32,6 @@ from PySide6.QtGui import (
     QPixmap,
     QPen,
     QFont,
-    QBrush,
 )
 from rich.live import Live
 from rich.text import Text
@@ -154,6 +154,7 @@ class SliceView(QGraphicsView):
     BAR_MARGIN_RATIO: Final = 0.05
     BTN_SIZE_RATIO: Final = 0.04
     BTN_MARGIN_RATIO: Final = 0.02
+    SLICE_LINE_RATIO: Final = 0.01
 
     ZOOM_FACTOR: Final = 1.15
 
@@ -199,7 +200,8 @@ class SliceView(QGraphicsView):
         self._rotate_cw_btn = self._create_overlay_button("⟳", lambda: self._on_rotation_btn_clicked(True))
         self._rotate_ccw_btn = self._create_overlay_button("⟲", lambda: self._on_rotation_btn_clicked(False))
 
-        # self._build_doi_item()
+        self._horizontal_slice_line = QGraphicsLineItem(parent = self._pixmap_item)
+        self._vertical_slice_line = QGraphicsLineItem(parent = self._pixmap_item)
 
     def _build_conections(self):
         self.rotation_request.connect(self.app_state.on_rotation_request)
@@ -213,6 +215,7 @@ class SliceView(QGraphicsView):
         super().showEvent(event)
         
         self._fit_view(False)
+        self._update_slice_lines()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -364,6 +367,14 @@ class SliceView(QGraphicsView):
             self.scale(fit_scale, fit_scale)
         
         self._update_view_center()
+
+    def _update_slice_lines(self):
+        min_viewport_dimension = min(self.viewport().rect().height(), self.viewport().rect().width())
+        line_thickness = min_viewport_dimension * self.SLICE_LINE_RATIO
+
+        self._horizontal_slice_line.setLine(0, 0, 0, self._pixmap_item.boundingRect().height())
+        self._horizontal_slice_line.setPen(QPen(QColor("yellow"), line_thickness))
+        self._horizontal_slice_line.setZValue(10)
 
     def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:
         btn = QPushButton(text, self)
