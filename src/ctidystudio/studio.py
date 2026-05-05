@@ -163,7 +163,7 @@ class SliceView(QGraphicsView):
 
     @property
     def rotation(self):
-        return self._view_orientation.rotation * self.app_state.scan_rotation_in_view_ref
+        return self._view_orientation.rotate(self.app_state.scan_rotation_in_view_ref.inv()).rotation.inv()
 
     def __init__(self, app_state: AppState, view_orientation: Orientation) -> None:
         super().__init__()
@@ -207,6 +207,7 @@ class SliceView(QGraphicsView):
         self.rotation_request.connect(self.app_state.on_rotation_request)
 
         self.app_state.view_changed.connect(self._update_view)
+        self.app_state.view_changed.connect(self._update_slice_lines)
 
     def _set_initial_state(self):
         self._update_view()
@@ -372,8 +373,11 @@ class SliceView(QGraphicsView):
         min_viewport_dimension = min(self.viewport().rect().height(), self.viewport().rect().width())
         line_thickness = min_viewport_dimension * self.SLICE_LINE_RATIO
 
+        view_orientation_in_view_coord = self._view_orientation.rotate(self.rotation.inv())
+        print(view_orientation_in_view_coord)
+
         self._horizontal_slice_line.setLine(0, 0, 0, self._pixmap_item.boundingRect().height())
-        self._horizontal_slice_line.setPen(QPen(QColor("yellow"), line_thickness))
+        self._horizontal_slice_line.setPen(QPen(view_orientation_in_view_coord.up.associated_color, line_thickness))
         self._horizontal_slice_line.setZValue(10)
 
     def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:

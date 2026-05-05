@@ -6,6 +6,9 @@ from collections import deque
 from scipy.spatial.transform import Rotation
 import numpy as np
 import tifffile
+from PySide6.QtGui import (
+    QColor,
+)
 
 
 class Point:
@@ -73,6 +76,15 @@ class CardinalDirection(Enum):
             CardinalDirection.Z_: (1, 0),
         }
         return plane[self]
+    
+    @property
+    def associated_color(self) -> QColor:
+        colors = {
+            0: QColor("#ffbf00"),
+            1: QColor("#ff8000"),
+            2: QColor("#ff0000"),
+            }
+        return colors[self.dir]
 
     def __neg__(self) -> "CardinalDirection":
         opposites = {
@@ -146,7 +158,10 @@ class Orientation:
         
         object.__setattr__(self, "right", CardinalDirection(tuple(np.rint(np.cross(self.forward.vec, self.up.vec)).astype(int))))
 
-        object.__setattr__(self, "rotation", Rotation.from_matrix(np.row_stack((self.right.vec, self.up.vec, -self.forward.vec))))
+        object.__setattr__(self, "rotation", Rotation.from_matrix(np.column_stack((self.right.vec, self.up.vec, -self.forward.vec))))
+
+    def rotate(self, rotation: Rotation) -> "Orientation":
+        return Orientation(self.forward.rotate(rotation), self.up.rotate(rotation))
 
 
 @dataclass(frozen=True)

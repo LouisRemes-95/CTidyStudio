@@ -10,6 +10,7 @@ wheels/
 .venv
 
 input_scan_example/
+input_scan_example_copy/
 
 # Codex
 start_cli_ai_agent.sh
