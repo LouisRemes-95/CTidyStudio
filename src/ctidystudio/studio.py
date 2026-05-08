@@ -562,17 +562,19 @@ class IncrementControl(QWidget):
         layout = QHBoxLayout(self)
         layout.setSpacing(10)
 
-        self._decrease_100_btn = self.IncrementButton("-100", -100, self.increment_requested, parent=self)
-        self._decrease_10_btn = self.IncrementButton("-10", -10, self.increment_requested, parent=self)
-        self._decrease_1_btn = self.IncrementButton("-1", -1, self.increment_requested, parent=self)
+        self._decrease_100_btn = self.IncrementButton("---", -100, self.increment_requested, parent = self)
+        self._decrease_10_btn = self.IncrementButton("--", -10, self.increment_requested, parent = self)
+        self._decrease_1_btn = self.IncrementButton("-", -1, self.increment_requested, parent = self)
 
-        self._editable_display = QLineEdit()
-        self._editable_display.setPlaceholderText("value")
+        self._editable_display = QLineEdit(parent = self)
+        fm = self._editable_display.fontMetrics()
+        self._editable_display.setMinimumWidth(fm.horizontalAdvance("0000000"))
+        self._editable_display.setAlignment(Qt.AlignCenter)
         self._editable_display.returnPressed.connect(self._on_value_submitted)
 
-        self._increase_1_btn = self.IncrementButton("+1", 1, self.increment_requested, parent=self)
-        self._increase_10_btn = self.IncrementButton("+10", 10, self.increment_requested, parent=self)
-        self._increase_100_btn = self.IncrementButton("+100", 100, self.increment_requested, parent=self)
+        self._increase_1_btn = self.IncrementButton("+", 1, self.increment_requested, parent = self)
+        self._increase_10_btn = self.IncrementButton("++", 10, self.increment_requested, parent = self)
+        self._increase_100_btn = self.IncrementButton("+++", 100, self.increment_requested, parent = self)
 
         layout.addWidget(self._decrease_100_btn, 1)
         layout.addWidget(self._decrease_10_btn, 1)
