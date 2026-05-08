@@ -4,6 +4,8 @@ from enum import Enum
 from typing import Final, Callable
 import numpy as np
 import math
+from dataclasses import dataclass
+from functools import partial
 
 from PySide6.QtCore import (
     QObject,
@@ -25,6 +27,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QGraphicsDropShadowEffect,
     QGraphicsLineItem,
+    QLineEdit,
 )
 from PySide6.QtGui import (
     QColor,
@@ -71,6 +74,7 @@ def _to_si(x: int, unit: str = "m") -> str:
 
 class AppState(QObject):
     view_changed = Signal()
+    slice_pos_changed = Signal()
 
     def __init__(self, scan: Scan) -> None:
         super().__init__()
@@ -90,10 +94,23 @@ class AppState(QObject):
     def slice_pos(self):
         return self._slice_pos
     
+    def fire_all_signals(self):
+        self.view_changed.emit()
+        self.slice_pos_changed.emit()
+
     def on_rotation_request(self, rotation: Rotation) -> None:
         self._scan_rotation_in_view_ref = rotation * self._scan_rotation_in_view_ref
         self.view_changed.emit()
     
+    def on_move_slice_pos_request(self, direction: CardinalDirection, value: int):
+        self._slice_pos.move(direction, value)
+
+        self.slice_pos_changed.emit()
+
+    def on_set_slice_pos_request(self, direction: CardinalDirection, value: int):
+        self._slice_pos.move_to(direction, value)
+
+        self.slice_pos_changed.emit()
 
 class CTidyStudio(QMainWindow):
     def __init__(self, scan: Scan) -> None:
@@ -103,6 +120,8 @@ class CTidyStudio(QMainWindow):
 
         self._build_slice_views()
         self._build_ui()
+
+        self.app_state.fire_all_signals()
 
     def _build_slice_views(self):
 
@@ -140,13 +159,28 @@ class CTidyStudio(QMainWindow):
 
         right_layout = QVBoxLayout(right_container)
 
-        # increment_button = self._build_right_Widget()
+        binding = IncrementControlBinding(partial(self.app_state.on_move_slice_pos_request, CardinalDirection.X),
+                                       partial(self.app_state.on_set_slice_pos_request, CardinalDirection.X),
+                                       self.app_state.slice_pos_changed,
+                                       lambda: self.app_state.slice_pos.coord[CardinalDirection.X.dir])
 
-        # right_layout.addWidget(increment_button, 1)
+        increment_button = self._create_increment_control(right_container, binding)
+
+        right_layout.addWidget(increment_button, 1)
 
         main_layout.addWidget(left_container, 2)
         main_layout.addWidget(right_container, 1)
 
+    @staticmethod
+    def _create_increment_control(parent: QObject, binding: "IncrementControlBinding") -> "IncrementControl":
+        control = IncrementControl(parent)
+
+        control.increment_requested.connect(binding.on_increment)
+        control.value_submitted.connect(binding.on_submit)
+        
+        binding.refresh_signal.connect(lambda: control.set_value(binding.read_value()))
+
+        return control
 
 class SliceView(QGraphicsView):
     BAR_WIDTH_RATIO: Final = 0.1
@@ -175,8 +209,6 @@ class SliceView(QGraphicsView):
         self._build_view()
         self._build_dependencies()
         self._build_conections()
-
-        self._set_initial_state()
 
     def _build_view(self) -> None:
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -208,15 +240,13 @@ class SliceView(QGraphicsView):
 
         self.app_state.view_changed.connect(self._update_view)
         self.app_state.view_changed.connect(self._update_slice_lines)
-
-    def _set_initial_state(self):
-        self._update_view()
+        self.app_state.slice_pos_changed.connect(self._update_slice_lines)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
         
-        self._fit_view(False)
         self._update_slice_lines()
+        self._fit_view(False)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -371,24 +401,26 @@ class SliceView(QGraphicsView):
         self._update_slice_line_thickness()
 
     def _update_slice_lines(self):
+        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state._scan_rotation_in_view_ref.inv())
+
         slice_pos_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.slice_pos))
         
         self._horizontal_slice_line.setLine(0, slice_pos_in_pixmap_coord.y(), self._pixmap_item.boundingRect().width(), slice_pos_in_pixmap_coord.y())
+        self._horizontal_slice_line.setPen(QPen(view_orientation_in_view_coord.right.associated_color, 1))
         self._horizontal_slice_line.setZValue(10)
         
         self._vertical_slice_line.setLine(slice_pos_in_pixmap_coord.x(), 0, slice_pos_in_pixmap_coord.x(), self._pixmap_item.boundingRect().height())
+        self._vertical_slice_line.setPen(QPen(view_orientation_in_view_coord.up.associated_color, 1))
         self._vertical_slice_line.setZValue(10)
-
         self._update_slice_line_thickness()
 
     def _update_slice_line_thickness(self):
         min_viewport_dimension = min(self.viewport().height(), self.viewport().width()) / self.transform().m11()
         line_thickness = min_viewport_dimension * self.SLICE_LINE_RATIO
 
-        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state._scan_rotation_in_view_ref.inv())
-
-        self._horizontal_slice_line.setPen(QPen(view_orientation_in_view_coord.right.associated_color, line_thickness))
-        self._vertical_slice_line.setPen(QPen(view_orientation_in_view_coord.up.associated_color, line_thickness))
+        self._horizontal_slice_line.setPen(QPen(self._horizontal_slice_line.pen().color(), line_thickness))
+        
+        self._vertical_slice_line.setPen(QPen(self._vertical_slice_line.pen().color(), line_thickness))
 
     def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:
         btn = QPushButton(text, self)
@@ -478,6 +510,106 @@ class SliceView(QGraphicsView):
 
         self._fit_view(True)
 
+
+@dataclass(slots=True)
+class IncrementControlBinding:
+    on_increment: Callable[[int], None]
+    on_submit: Callable[[int], None]
+    refresh_signal: Signal
+    read_value: Callable[[], int]
+
+
+class IncrementControl(QWidget):
+    increment_requested = Signal(int)
+    value_submitted = Signal(int)
+
+    def __init__(self, parent: QObject = None) -> None:
+        super().__init__(parent)
+
+        self._build_dependencies()
+        
+    class IncrementButton(QPushButton):
+        def __init__(self, text: str, increment: int, on_increment_signal: Signal, parent: QObject = None) -> None:
+            super().__init__(text, parent)
+
+            self._increment = increment
+            self._on_increment_signal = on_increment_signal
+
+            self.setCursor(Qt.PointingHandCursor)
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: #3a3a3a;
+                    color: white;
+                    border: 1px solid #666;
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }
+                QPushButton:hover {
+                    background-color: #4a6fa5;
+                    border: 1px solid #7aa2d6;
+                }
+                QPushButton:pressed {
+                    background-color: #34527a;
+                }
+            """)
+
+            self.clicked.connect(self._on_clicked)
+
+        def _on_clicked(self):
+            self._on_increment_signal.emit(self._increment)
+
+    def _build_dependencies(self) -> None:
+        layout = QHBoxLayout(self)
+        layout.setSpacing(10)
+
+        self._decrease_100_btn = self.IncrementButton("-100", -100, self.increment_requested, parent=self)
+        self._decrease_10_btn = self.IncrementButton("-10", -10, self.increment_requested, parent=self)
+        self._decrease_1_btn = self.IncrementButton("-1", -1, self.increment_requested, parent=self)
+
+        self._editable_display = QLineEdit()
+        self._editable_display.setPlaceholderText("value")
+        self._editable_display.returnPressed.connect(self._on_value_submitted)
+
+        self._increase_1_btn = self.IncrementButton("+1", 1, self.increment_requested, parent=self)
+        self._increase_10_btn = self.IncrementButton("+10", 10, self.increment_requested, parent=self)
+        self._increase_100_btn = self.IncrementButton("+100", 100, self.increment_requested, parent=self)
+
+        layout.addWidget(self._decrease_100_btn, 1)
+        layout.addWidget(self._decrease_10_btn, 1)
+        layout.addWidget(self._decrease_1_btn, 1)
+        layout.addWidget(self._editable_display, 1)
+        layout.addWidget(self._increase_1_btn, 1)
+        layout.addWidget(self._increase_10_btn, 1)
+        layout.addWidget(self._increase_100_btn, 1)
+
+        self.setStyleSheet("""
+            #controlPanel {
+                background-color: #2b2b2b;
+                border: 1px solid white;
+                border-radius: 12px;
+            }
+            QLineEdit {
+                background-color: #3a3a3a;
+                color: white;
+                border: 1px solid #666;
+                border-radius: 6px;
+                padding: 6px 10px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #7aa2d6;
+            }
+        """)
+
+    def _on_value_submitted(self) -> None:
+        text = self._editable_display.text().strip()
+        if not text:
+            return
+
+        self.value_submitted.emit(int(text))
+
+    def set_value(self, value: int) -> None:
+        print("set_value")
+        self._editable_display.setText(str(value))
 
 class Mode(str, Enum):
     RESET = "reset"

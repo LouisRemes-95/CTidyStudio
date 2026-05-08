@@ -32,6 +32,15 @@ class Point:
     def rotate_with_scan_center(self, rotation: Rotation, scan_center: "Point") -> "Point":
         return Point(rotation.apply(self.coord) + np.abs(rotation.apply(scan_center.coord)) - rotation.apply(scan_center.coord))
     
+    def move(self, direction: "CardinalDirection", value: int) -> None:
+        value = value if direction.vec[direction.dir] > 0 else -value
+
+        self._coord[direction.dir] += value
+    
+    def move_to(self, direction: "CardinalDirection", value: int) -> None:
+        value = value if direction.vec[direction.dir] > 0 else -value
+
+        self._coord[direction.dir] = value
 
 class CardinalDirection(Enum):
     X  = (1, 0, 0)
