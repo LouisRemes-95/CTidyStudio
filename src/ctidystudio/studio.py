@@ -154,7 +154,7 @@ class SliceView(QGraphicsView):
     BAR_MARGIN_RATIO: Final = 0.05
     BTN_SIZE_RATIO: Final = 0.04
     BTN_MARGIN_RATIO: Final = 0.02
-    SLICE_LINE_RATIO: Final = 0.01
+    SLICE_LINE_RATIO: Final = 0.005
 
     ZOOM_FACTOR: Final = 1.15
 
@@ -350,12 +350,12 @@ class SliceView(QGraphicsView):
         return point.rotate_with_scan_center(self.rotation.inv(), self._global_to_view_coord(self.app_state.scan.center))
     
     def _view_to_pixmap_coord(self, point: Point) -> QPointF:
-        return QPointF(point.coord[0], self._pixmap_item.boundingRect().height() - point.coord[1])
+        return QPointF(point.coord[0] + .5, self._pixmap_item.boundingRect().height() - .5 - point.coord[1])
     
     def _pixmap_to_view_coord(self, point: QPointF) -> Point:
         slice_pos_in_view_coord = self._global_to_view_coord(self.app_state.slice_pos)
 
-        return Point(np.array([point.x(), self._pixmap_item.boundingRect().height() - point.y(), slice_pos_in_view_coord.coord[2]]))
+        return Point(np.array([point.x() - .5, self._pixmap_item.boundingRect().height() - point.y() + .5, slice_pos_in_view_coord.coord[2]]))
 
     def _fit_view(self, crop_only: bool = False) -> None:
         pixmap = self._pixmap_item.pixmap()
@@ -368,17 +368,27 @@ class SliceView(QGraphicsView):
             self.scale(fit_scale, fit_scale)
         
         self._update_view_center()
+        self._update_slice_line_thickness()
 
     def _update_slice_lines(self):
-        min_viewport_dimension = min(self.viewport().rect().height(), self.viewport().rect().width())
+        slice_pos_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.slice_pos))
+        
+        self._horizontal_slice_line.setLine(0, slice_pos_in_pixmap_coord.y(), self._pixmap_item.boundingRect().width(), slice_pos_in_pixmap_coord.y())
+        self._horizontal_slice_line.setZValue(10)
+        
+        self._vertical_slice_line.setLine(slice_pos_in_pixmap_coord.x(), 0, slice_pos_in_pixmap_coord.x(), self._pixmap_item.boundingRect().height())
+        self._vertical_slice_line.setZValue(10)
+
+        self._update_slice_line_thickness()
+
+    def _update_slice_line_thickness(self):
+        min_viewport_dimension = min(self.viewport().height(), self.viewport().width()) / self.transform().m11()
         line_thickness = min_viewport_dimension * self.SLICE_LINE_RATIO
 
-        view_orientation_in_view_coord = self._view_orientation.rotate(self.rotation.inv())
-        print(view_orientation_in_view_coord)
+        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state._scan_rotation_in_view_ref.inv())
 
-        self._horizontal_slice_line.setLine(0, 0, 0, self._pixmap_item.boundingRect().height())
-        self._horizontal_slice_line.setPen(QPen(view_orientation_in_view_coord.up.associated_color, line_thickness))
-        self._horizontal_slice_line.setZValue(10)
+        self._horizontal_slice_line.setPen(QPen(view_orientation_in_view_coord.right.associated_color, line_thickness))
+        self._vertical_slice_line.setPen(QPen(view_orientation_in_view_coord.up.associated_color, line_thickness))
 
     def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:
         btn = QPushButton(text, self)
