@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
     QGraphicsLineItem,
     QLineEdit,
+    QSizePolicy,
 )
 from PySide6.QtGui import (
     QColor,
@@ -555,6 +556,9 @@ class IncrementControl(QWidget):
 
             self.clicked.connect(self._on_clicked)
 
+            self.setMinimumWidth(0)
+            self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+
         def _on_clicked(self):
             self._on_increment_signal.emit(self._increment)
 
@@ -576,13 +580,13 @@ class IncrementControl(QWidget):
         self._increase_10_btn = self.IncrementButton("++", 10, self.increment_requested, parent = self)
         self._increase_100_btn = self.IncrementButton("+++", 100, self.increment_requested, parent = self)
 
-        layout.addWidget(self._decrease_100_btn, 1)
-        layout.addWidget(self._decrease_10_btn, 1)
+        layout.addWidget(self._decrease_100_btn, 3)
+        layout.addWidget(self._decrease_10_btn, 2)
         layout.addWidget(self._decrease_1_btn, 1)
-        layout.addWidget(self._editable_display, 1)
+        layout.addWidget(self._editable_display, 4)
         layout.addWidget(self._increase_1_btn, 1)
-        layout.addWidget(self._increase_10_btn, 1)
-        layout.addWidget(self._increase_100_btn, 1)
+        layout.addWidget(self._increase_10_btn, 2)
+        layout.addWidget(self._increase_100_btn, 3)
 
         self.setStyleSheet("""
             #controlPanel {
@@ -610,7 +614,6 @@ class IncrementControl(QWidget):
         self.value_submitted.emit(int(text))
 
     def set_value(self, value: int) -> None:
-        print("set_value")
         self._editable_display.setText(str(value))
 
 class Mode(str, Enum):
