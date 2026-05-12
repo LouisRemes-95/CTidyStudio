@@ -29,6 +29,8 @@ from PySide6.QtWidgets import (
     QGraphicsLineItem,
     QLineEdit,
     QSizePolicy,
+    QLabel,
+    QScrollArea,
 )
 from PySide6.QtGui import (
     QColor,
@@ -147,28 +149,82 @@ class CTidyStudio(QMainWindow):
         left_layout.addWidget(self.top_slice_view, 1)
         left_layout.addWidget(self.bot_slice_view, 1)
 
-        right_container = QFrame()
-        right_container.setObjectName("rightFrame")
+
+        right_container = QScrollArea()
+        right_container.setFixedWidth(350)
+        right_container.setWidgetResizable(True)
+        right_container.setFrameShape(QFrame.NoFrame)
+        right_container.setObjectName("rightScrollArea")
 
         right_container.setStyleSheet("""
-        #rightFrame {
-            background-color: #2b2b2b;
-            border-radius: 15px;
+        QScrollArea#rightScrollArea {
+            background: #2b2b2b;
             border: 1px solid #696969;
+            border-radius: 15px;
+        }
+
+        QScrollArea#rightScrollArea > QWidget > QWidget {
+            background: transparent;
+        }
+
+        /* Vertical scrollbar */
+        QScrollBar:vertical {
+            background: transparent;
+            width: 10px;
+            border: none;
+        }
+
+        QScrollBar::handle:vertical {
+            background-color: #3a3a3a;
+            border: 1px solid #666;
+            min-height: 10px;
+            margin: 15px 2px 15px 2px
+        }
+
+        QScrollBar::handle:vertical:hover {
+            background: #4a6fa5;
+            border: 1px solid #7aa2d6;
+        }
+                                      
+        QScrollBar::handle:vertical:pressed {
+            background-color: #34527a;
+        }
+
+        QScrollBar::add-line:vertical,
+        QScrollBar::sub-line:vertical {
+            height: 0px;
+        }
+
+        QScrollBar::add-page:vertical,
+        QScrollBar::sub-page:vertical {
+            background: transparent;
         }
         """)
 
-        right_layout = QVBoxLayout(right_container)
+        # Inner scroll content widget
+        scroll_content = QWidget()
+        right_layout = QVBoxLayout(scroll_content)
+        right_layout.setAlignment(Qt.AlignTop)
+        right_layout.setContentsMargins(10, 10, 10, 10)
+        right_layout.setSpacing(2)
 
-        binding = IncrementControlBinding(partial(self.app_state.on_move_slice_pos_request, CardinalDirection.X),
-                                       partial(self.app_state.on_set_slice_pos_request, CardinalDirection.X),
-                                       self.app_state.slice_pos_changed,
-                                       lambda: self.app_state.slice_pos.coord[CardinalDirection.X.dir])
+        slice_pos_label = QLabel("Slice position")
+        slice_pos_label.setAlignment(Qt.AlignCenter)
+        right_layout.addWidget(slice_pos_label)
+        right_layout.addSpacing(5)
 
-        increment_button = self._create_increment_control(right_container, binding)
+        binding = IncrementControlBinding(
+            partial(self.app_state.on_move_slice_pos_request, CardinalDirection.X),
+            partial(self.app_state.on_set_slice_pos_request, CardinalDirection.X),
+            self.app_state.slice_pos_changed,
+            lambda: self.app_state.slice_pos.coord[CardinalDirection.X.dir]
+        )
 
-        right_layout.addWidget(increment_button, 1)
-
+        increment_button = self._create_increment_control(scroll_content, binding)
+        right_layout.addWidget(increment_button)
+        
+        right_container.setWidget(scroll_content)
+        
         main_layout.addWidget(left_container, 2)
         main_layout.addWidget(right_container, 1)
 
@@ -210,6 +266,8 @@ class SliceView(QGraphicsView):
         self._build_view()
         self._build_dependencies()
         self._build_conections()
+
+        self.setMinimumSize(300, 300)
 
     def _build_view(self) -> None:
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -544,6 +602,7 @@ class IncrementControl(QWidget):
                     border: 1px solid #666;
                     border-radius: 6px;
                     padding: 6px 10px;
+                    font-size: 12px;
                 }
                 QPushButton:hover {
                     background-color: #4a6fa5;
@@ -557,22 +616,21 @@ class IncrementControl(QWidget):
             self.clicked.connect(self._on_clicked)
 
             self.setMinimumWidth(0)
-            self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+            self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         def _on_clicked(self):
             self._on_increment_signal.emit(self._increment)
 
     def _build_dependencies(self) -> None:
         layout = QHBoxLayout(self)
-        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
 
         self._decrease_100_btn = self.IncrementButton("---", -100, self.increment_requested, parent = self)
         self._decrease_10_btn = self.IncrementButton("--", -10, self.increment_requested, parent = self)
         self._decrease_1_btn = self.IncrementButton("-", -1, self.increment_requested, parent = self)
 
         self._editable_display = QLineEdit(parent = self)
-        fm = self._editable_display.fontMetrics()
-        self._editable_display.setMinimumWidth(fm.horizontalAdvance("0000000"))
         self._editable_display.setAlignment(Qt.AlignCenter)
         self._editable_display.returnPressed.connect(self._on_value_submitted)
 
@@ -600,6 +658,7 @@ class IncrementControl(QWidget):
                 border: 1px solid #666;
                 border-radius: 6px;
                 padding: 6px 10px;
+                font-size: 12px;
             }
             QLineEdit:focus {
                 border: 1px solid #7aa2d6;
