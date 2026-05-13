@@ -218,9 +218,11 @@ class CTidyStudio(QMainWindow):
         right_layout.addWidget(slice_pos_label)
         right_layout.addSpacing(5)
 
-        slice_pos_x_controls = self._create_slice_pos_x_controls(scroll_content)
-
-        right_layout.addLayout(slice_pos_x_controls)
+        right_layout.addLayout(self._create_slice_pos_controls(CardinalDirection.X, scroll_content))
+        right_layout.addSpacing(5)
+        right_layout.addLayout(self._create_slice_pos_controls(CardinalDirection.Y, scroll_content))
+        right_layout.addSpacing(5)
+        right_layout.addLayout(self._create_slice_pos_controls(CardinalDirection.Z, scroll_content))
         
         right_container.setWidget(scroll_content)
 
@@ -237,14 +239,14 @@ class CTidyStudio(QMainWindow):
 
         return control
 
-    def _create_slice_pos_x_controls(self, parent: QObject) -> QHBoxLayout:
+    def _create_slice_pos_controls(self, direction: CardinalDirection, parent: QObject) -> QHBoxLayout:
         layout = QHBoxLayout()
 
         binding = IncrementControlBinding(
-            partial(self.app_state.on_move_slice_pos_request, CardinalDirection.X),
-            partial(self.app_state.on_set_slice_pos_request, CardinalDirection.X),
+            partial(self.app_state.on_move_slice_pos_request, direction),
+            partial(self.app_state.on_set_slice_pos_request, direction),
             self.app_state.slice_pos_changed,
-            lambda: self.app_state.slice_pos.coord[CardinalDirection.X.dir]
+            lambda: self.app_state.slice_pos.coord[direction.dir]
         )
 
         increment_button = self._create_increment_control(parent, binding)
@@ -482,11 +484,11 @@ class SliceView(QGraphicsView):
         slice_pos_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.slice_pos))
         
         self._horizontal_slice_line.setLine(0, slice_pos_in_pixmap_coord.y(), self._pixmap_item.boundingRect().width(), slice_pos_in_pixmap_coord.y())
-        self._horizontal_slice_line.setPen(QPen(view_orientation_in_view_coord.right.associated_color, 1))
+        self._horizontal_slice_line.setPen(QPen(view_orientation_in_view_coord.up.associated_color, 1))
         self._horizontal_slice_line.setZValue(10)
         
         self._vertical_slice_line.setLine(slice_pos_in_pixmap_coord.x(), 0, slice_pos_in_pixmap_coord.x(), self._pixmap_item.boundingRect().height())
-        self._vertical_slice_line.setPen(QPen(view_orientation_in_view_coord.up.associated_color, 1))
+        self._vertical_slice_line.setPen(QPen(view_orientation_in_view_coord.right.associated_color, 1))
         self._vertical_slice_line.setZValue(10)
         self._update_slice_line_thickness()
 
