@@ -149,9 +149,14 @@ class CTidyStudio(QMainWindow):
         left_layout.addWidget(self.top_slice_view, 1)
         left_layout.addWidget(self.bot_slice_view, 1)
 
+        right_container = self._build_scroll_area()
+        
+        main_layout.addWidget(left_container, 2)
+        main_layout.addWidget(right_container, 1)
 
+    def _build_scroll_area(self) -> QScrollArea:
         right_container = QScrollArea()
-        right_container.setFixedWidth(350)
+        right_container.setFixedWidth(400)
         right_container.setWidgetResizable(True)
         right_container.setFrameShape(QFrame.NoFrame)
         right_container.setObjectName("rightScrollArea")
@@ -213,20 +218,13 @@ class CTidyStudio(QMainWindow):
         right_layout.addWidget(slice_pos_label)
         right_layout.addSpacing(5)
 
-        binding = IncrementControlBinding(
-            partial(self.app_state.on_move_slice_pos_request, CardinalDirection.X),
-            partial(self.app_state.on_set_slice_pos_request, CardinalDirection.X),
-            self.app_state.slice_pos_changed,
-            lambda: self.app_state.slice_pos.coord[CardinalDirection.X.dir]
-        )
+        slice_pos_x_controls = self._create_slice_pos_x_controls(scroll_content)
 
-        increment_button = self._create_increment_control(scroll_content, binding)
-        right_layout.addWidget(increment_button)
+        right_layout.addLayout(slice_pos_x_controls)
         
         right_container.setWidget(scroll_content)
-        
-        main_layout.addWidget(left_container, 2)
-        main_layout.addWidget(right_container, 1)
+
+        return right_container
 
     @staticmethod
     def _create_increment_control(parent: QObject, binding: "IncrementControlBinding") -> "IncrementControl":
@@ -238,6 +236,25 @@ class CTidyStudio(QMainWindow):
         binding.refresh_signal.connect(lambda: control.set_value(binding.read_value()))
 
         return control
+
+    def _create_slice_pos_x_controls(self, parent: QObject) -> QHBoxLayout:
+        layout = QHBoxLayout()
+
+        binding = IncrementControlBinding(
+            partial(self.app_state.on_move_slice_pos_request, CardinalDirection.X),
+            partial(self.app_state.on_set_slice_pos_request, CardinalDirection.X),
+            self.app_state.slice_pos_changed,
+            lambda: self.app_state.slice_pos.coord[CardinalDirection.X.dir]
+        )
+
+        increment_button = self._create_increment_control(parent, binding)
+
+        btn = QPushButton()
+        
+        layout.addWidget(btn, 1)
+        layout.addWidget(increment_button, 4)
+
+        return layout
 
 class SliceView(QGraphicsView):
     BAR_WIDTH_RATIO: Final = 0.1
