@@ -422,7 +422,19 @@ class SliceView(QGraphicsView):
         painter.setBrush(QBrush(view_orientation_in_view_coord.up.associated_color))
         painter.drawPolygon(vertical_arrow)
 
-        # scale text
+        ## Text
+        def draw_text(x: float, y: float, text: str, color: QColor):
+            # black outline
+            painter.setPen(Qt.GlobalColor.black)
+            painter.drawText(x - 1, y, text)
+            painter.drawText(x + 1, y, text)
+            painter.drawText(x, y - 1, text)
+            painter.drawText(x, y + 1, text)
+
+            painter.setPen(color)
+            painter.drawText(x, y, text)
+
+        # Scale text
         real_size = self.app_state.scan.voxel_size / 1000 * bar_width / self.transform().m11()
         text = _to_si(real_size)
 
@@ -436,15 +448,13 @@ class SliceView(QGraphicsView):
         text_x = x + (bar_width - text_width) // 2
         text_y = y - bar_height * 2
 
-        # black outline
-        painter.setPen(Qt.GlobalColor.black)
-        painter.drawText(text_x - 1, text_y, text)
-        painter.drawText(text_x + 1, text_y, text)
-        painter.drawText(text_x, text_y - 1, text)
-        painter.drawText(text_x, text_y + 1, text)
+        draw_text(text_x, text_y, text, Qt.GlobalColor.white)
 
-        painter.setPen(Qt.GlobalColor.white)
-        painter.drawText(text_x, text_y, text)
+        # Right axis text
+        text_x = horizontal_margin + bar_width + bar_height * 3
+        text_y = y - (bar_height - fm.ascent() + fm.descent()) / 2
+
+        draw_text(text_x, text_y, str(view_orientation_in_view_coord.right), Qt.GlobalColor.white)
 
 
         

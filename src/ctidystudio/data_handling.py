@@ -54,6 +54,9 @@ class CardinalDirection(Enum):
         self._vec = np.array((x, y, z), dtype=int)
         self._direction_index = np.nonzero(self._vec)[0][0]
 
+    def __str__(self):
+        return f"-{self.name[0]}" if self.name.endswith("_") else self.name
+
     @property
     def vec(self):
         return self._vec
@@ -89,9 +92,9 @@ class CardinalDirection(Enum):
     @property
     def associated_color(self) -> QColor:
         colors = {
-            0: QColor("#ffbf00"),
-            1: QColor("#ff8000"),
-            2: QColor("#ff0000"),
+            0: QColor("#1F77B4"),
+            1: QColor("#FF7F0E"),
+            2: QColor("#2CA02C"),
             }
         return colors[self.dir]
 
