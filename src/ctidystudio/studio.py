@@ -376,7 +376,7 @@ class SliceView(QGraphicsView):
         painter.setPen(QPen(Qt.GlobalColor.black, 1))
         painter.setBrush(QBrush(Qt.GlobalColor.white))
 
-        # scale line
+        # Scale line
         w = self.viewport().width()
         h = self.viewport().height()
 
@@ -391,7 +391,10 @@ class SliceView(QGraphicsView):
 
         painter.drawRect(x, y, bar_width, bar_height)
 
-        # right axis
+        # Axis
+        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state._scan_rotation_in_view_ref.inv())
+
+        # Right axis
         horizontal_arrow = QPolygonF([
             QPointF(horizontal_margin, y),
             QPointF(horizontal_margin + bar_width, y),
@@ -402,9 +405,10 @@ class SliceView(QGraphicsView):
             QPointF(horizontal_margin, y - bar_height),
         ])
 
+        painter.setBrush(QBrush(view_orientation_in_view_coord.right.associated_color))
         painter.drawPolygon(horizontal_arrow)
 
-        # up axis
+        # Up axis
         vertical_arrow = QPolygonF([
             QPointF(vertical_margin, h - horizontal_margin),
             QPointF(vertical_margin, h - horizontal_margin-bar_width),
@@ -415,6 +419,7 @@ class SliceView(QGraphicsView):
             QPointF(vertical_margin + bar_height, h - horizontal_margin),
         ])
 
+        painter.setBrush(QBrush(view_orientation_in_view_coord.up.associated_color))
         painter.drawPolygon(vertical_arrow)
 
         # scale text
