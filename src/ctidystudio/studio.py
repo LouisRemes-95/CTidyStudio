@@ -38,6 +38,8 @@ from PySide6.QtGui import (
     QPixmap,
     QPen,
     QFont,
+    QPolygonF,
+    QBrush,
 )
 from rich.live import Live
 from rich.text import Text
@@ -369,6 +371,11 @@ class SliceView(QGraphicsView):
         painter.save()
         painter.resetTransform()  # keep overlay fixed to the viewport
 
+        ## Drawings
+
+        painter.setPen(QPen(Qt.GlobalColor.black, 1))
+        painter.setBrush(QBrush(Qt.GlobalColor.white))
+
         # scale line
         w = self.viewport().width()
         h = self.viewport().height()
@@ -380,13 +387,35 @@ class SliceView(QGraphicsView):
         vertical_margin = int(h * self.BAR_MARGIN_RATIO)
 
         x = w - horizontal_margin - bar_width
-        y = h - vertical_margin - bar_height
+        y = h - vertical_margin
 
-        painter.fillRect(x, y, bar_width, bar_height, Qt.GlobalColor.white)
-
-        pen = QPen(Qt.GlobalColor.black, 1)
-        painter.setPen(pen)
         painter.drawRect(x, y, bar_width, bar_height)
+
+        # right axis
+        horizontal_arrow = QPolygonF([
+            QPointF(horizontal_margin, y),
+            QPointF(horizontal_margin + bar_width, y),
+            QPointF(horizontal_margin + bar_width, y + bar_height),
+            QPointF(horizontal_margin + bar_width + bar_height * 2, y - bar_height / 2),
+            QPointF(horizontal_margin + bar_width, y - 2 * bar_height),
+            QPointF(horizontal_margin + bar_width, y - bar_height),
+            QPointF(horizontal_margin, y - bar_height),
+        ])
+
+        painter.drawPolygon(horizontal_arrow)
+
+        # up axis
+        vertical_arrow = QPolygonF([
+            QPointF(vertical_margin, h - horizontal_margin),
+            QPointF(vertical_margin, h - horizontal_margin-bar_width),
+            QPointF(vertical_margin - bar_height, h - horizontal_margin - bar_width),
+            QPointF(vertical_margin + bar_height / 2, h - horizontal_margin - bar_width - bar_height * 2),
+            QPointF(vertical_margin + 2 * bar_height, h - horizontal_margin - bar_width),
+            QPointF(vertical_margin + bar_height, h - horizontal_margin - bar_width),
+            QPointF(vertical_margin + bar_height, h - horizontal_margin),
+        ])
+
+        painter.drawPolygon(vertical_arrow)
 
         # scale text
         real_size = self.app_state.scan.voxel_size / 1000 * bar_width / self.transform().m11()
@@ -411,6 +440,9 @@ class SliceView(QGraphicsView):
 
         painter.setPen(Qt.GlobalColor.white)
         painter.drawText(text_x, text_y, text)
+
+
+        
 
         painter.restore()
 
