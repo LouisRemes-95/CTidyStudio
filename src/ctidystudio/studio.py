@@ -443,9 +443,9 @@ class SliceView(QGraphicsView):
         painter.setFont(font)
 
         fm = painter.fontMetrics()
-        text_width = fm.horizontalAdvance(text)
+        text_width = fm.boundingRect(text).width()
 
-        text_x = x + (bar_width - text_width) // 2
+        text_x = x + (bar_width - text_width) / 2
         text_y = y - bar_height * 2
 
         draw_text(text_x, text_y, text, Qt.GlobalColor.white)
@@ -454,7 +454,13 @@ class SliceView(QGraphicsView):
         text_x = horizontal_margin + bar_width + bar_height * 3
         text_y = y - (bar_height - fm.ascent() + fm.descent()) / 2
 
-        draw_text(text_x, text_y, str(view_orientation_in_view_coord.right), Qt.GlobalColor.white)
+        draw_text(text_x, text_y, str(view_orientation_in_view_coord.right), view_orientation_in_view_coord.right.associated_color)
+
+        # Up axis text
+        text_x = vertical_margin + (bar_height - fm.boundingRect(str(view_orientation_in_view_coord.up)).width()) / 2
+        text_y =  h - horizontal_margin - bar_width - bar_height * 3
+
+        draw_text(text_x, text_y, str(view_orientation_in_view_coord.up), view_orientation_in_view_coord.up.associated_color)
 
 
         
