@@ -19,11 +19,11 @@ class Point:
         self._coord = coord
 
     @property
-    def coord(self):
+    def coord(self) -> np.ndarray[float]:
         return self._coord
     
     @property
-    def int_coord(self):
+    def int_coord(self) -> np.ndarray[int]:
         return np.rint(self.coord).astype(int)
     
     def rotate(self, rotation: Rotation) -> "Point":
@@ -42,6 +42,10 @@ class Point:
 
         self._coord[direction.dir] = value
 
+    def move_back_in_bounds(self, direction: "CardinalDirection", lower: float, upper: float):
+        self._coord[direction.dir] = max(self._coord[direction.dir], lower)
+        self._coord[direction.dir] = min(self._coord[direction.dir], upper)
+
 class CardinalDirection(Enum):
     X  = (1, 0, 0)
     Y  = (0, 1, 0)
@@ -58,11 +62,11 @@ class CardinalDirection(Enum):
         return f"-{self.name[0]}" if self.name.endswith("_") else self.name
 
     @property
-    def vec(self):
+    def vec(self) -> np.ndarray:
         return self._vec
 
     @property
-    def dir(self):
+    def dir(self) -> int:
         return self._direction_index
     
     @property
