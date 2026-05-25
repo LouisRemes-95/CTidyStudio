@@ -251,15 +251,63 @@ class CTidyStudio(QMainWindow):
         return control
 
     def _create_slice_pos_controls(self, direction: CardinalDirection, parent: QObject) -> QHBoxLayout:
+        signal = self.app_state.slice_pos_changed
+        
         layout = QHBoxLayout()
 
         btn = QPushButton()
         btn.clicked.connect(partial(self.app_state.on_switch_slice_pos_show_dir_request, direction))
+        btn.setFixedWidth(95)
 
+        def update_btn(btn: QPushButton, direction: CardinalDirection) -> None:
+            if self.app_state._slice_pos_show_dir[direction.dir]:
+                btn.setText(f"Hide {direction} Slice")
+
+                btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background-color: {direction.associated_color.name()};
+                            color: white;
+                            border: 1px solid #666;
+                            border-radius: 6px;
+                            padding: 6px 10px;
+                            font-size: 12px;
+                        }}
+                        QPushButton:hover {{
+                            background-color: {direction.associated_color.darker(130).name()};
+                            border: 1px solid #7aa2d6;
+                        }}
+                        QPushButton:pressed {{
+                            background-color: {direction.associated_color.name()};
+                        }}
+                    """)
+                
+            else:
+                btn.setText(f"Show {direction} Slice")
+
+                btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #3a3a3a;
+                            color: white;
+                            border: 1px solid #666;
+                            border-radius: 6px;
+                            padding: 6px 10px;
+                            font-size: 12px;
+                        }
+                        QPushButton:hover {
+                            background-color: #4a6fa5;
+                            border: 1px solid #7aa2d6;
+                        }
+                        QPushButton:pressed {
+                            background-color: #34527a;
+                        }
+                    """)
+            
+        signal.connect(partial(update_btn, btn, direction))
+        
         binding = IncrementControlBinding(
             partial(self.app_state.on_move_slice_pos_request, direction),
             partial(self.app_state.on_set_slice_pos_request, direction),
-            self.app_state.slice_pos_changed,
+            signal,
             lambda: self.app_state.slice_pos.coord[direction.dir]
         )
 
