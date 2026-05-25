@@ -53,6 +53,7 @@ from ctidystudio.data_handling import (
     Point
 )
 
+
 SI_PREFIXES = {
     -12: "p",   # pico
     -9:  "n",   # nano
@@ -77,6 +78,7 @@ def _to_si(x: int, unit: str = "m") -> str:
 
     return f"{value:.2f} {prefix}{unit}"
 
+
 class AppState(QObject):
     view_changed = Signal()
     slice_pos_changed = Signal()
@@ -86,6 +88,7 @@ class AppState(QObject):
         self._scan = scan
         self._scan_rotation_in_view_ref = Rotation.identity()
         self._slice_pos = Point(np.array([0, 0, 0]))
+        self._slice_pos_show_dir = [False, False, False]
 
     @property
     def scan(self):
@@ -118,6 +121,7 @@ class AppState(QObject):
         self._slice_pos.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.slice_pos_changed.emit()
+
 
 class CTidyStudio(QMainWindow):
     def __init__(self, scan: Scan) -> None:
@@ -262,6 +266,7 @@ class CTidyStudio(QMainWindow):
 
         return layout
 
+
 class SliceView(QGraphicsView):
     BAR_WIDTH_RATIO: Final = 0.1
     BAR_HEIGHT_RATIO: Final = 0.015
@@ -273,7 +278,6 @@ class SliceView(QGraphicsView):
     ZOOM_FACTOR: Final = 1.15
 
     rotation_request = Signal(CardinalDirection)
-    
 
     @property
     def rotation(self):
@@ -322,6 +326,7 @@ class SliceView(QGraphicsView):
 
         self.app_state.view_changed.connect(self._update_view)
         self.app_state.view_changed.connect(self._update_slice_lines)
+        self.app_state.slice_pos_changed.connect(self._update_view)
         self.app_state.slice_pos_changed.connect(self._update_slice_lines)
 
     def showEvent(self, event) -> None:
@@ -547,6 +552,9 @@ class SliceView(QGraphicsView):
         self._vertical_slice_line.setZValue(10)
         self._update_slice_line_thickness()
 
+        self._horizontal_slice_line.setVisible(self.app_state._slice_pos_show_dir[view_orientation_in_view_coord.up.dir])
+        self._vertical_slice_line.setVisible(self.app_state._slice_pos_show_dir[view_orientation_in_view_coord.right.dir])
+
     def _update_slice_line_thickness(self):
         min_viewport_dimension = min(self.viewport().height(), self.viewport().width()) / self.transform().m11()
         line_thickness = min_viewport_dimension * self.SLICE_LINE_RATIO
@@ -748,6 +756,7 @@ class IncrementControl(QWidget):
 
     def set_value(self, value: int) -> None:
         self._editable_display.setText(str(value))
+
 
 class Mode(str, Enum):
     RESET = "reset"
