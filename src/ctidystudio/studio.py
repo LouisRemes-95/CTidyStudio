@@ -122,6 +122,9 @@ class AppState(QObject):
 
         self.slice_pos_changed.emit()
 
+    def on_switch_slice_pos_show_dir_request(self, direction: CardinalDirection):
+        self._slice_pos_show_dir[direction.dir] = not self._slice_pos_show_dir[direction.dir]
+        self.slice_pos_changed.emit()
 
 class CTidyStudio(QMainWindow):
     def __init__(self, scan: Scan) -> None:
@@ -250,6 +253,9 @@ class CTidyStudio(QMainWindow):
     def _create_slice_pos_controls(self, direction: CardinalDirection, parent: QObject) -> QHBoxLayout:
         layout = QHBoxLayout()
 
+        btn = QPushButton()
+        btn.clicked.connect(partial(self.app_state.on_switch_slice_pos_show_dir_request, direction))
+
         binding = IncrementControlBinding(
             partial(self.app_state.on_move_slice_pos_request, direction),
             partial(self.app_state.on_set_slice_pos_request, direction),
@@ -258,8 +264,6 @@ class CTidyStudio(QMainWindow):
         )
 
         increment_button = self._create_increment_control(parent, binding)
-
-        btn = QPushButton()
         
         layout.addWidget(btn, 1)
         layout.addWidget(increment_button, 4)
