@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QScrollArea,
     QGraphicsRectItem,
+    QLayout,
 )
 from PySide6.QtGui import (
     QColor,
@@ -172,7 +173,7 @@ class CTidyStudio(QMainWindow):
 
     def _build_scroll_area(self) -> QScrollArea:
         right_container = QScrollArea()
-        right_container.setFixedWidth(400)
+        right_container.setFixedWidth(450)
         right_container.setWidgetResizable(True)
         right_container.setFrameShape(QFrame.NoFrame)
         right_container.setObjectName("rightScrollArea")
@@ -181,7 +182,7 @@ class CTidyStudio(QMainWindow):
         QScrollArea#rightScrollArea {
             background: #2b2b2b;
             border: 1px solid #696969;
-            border-radius: 15px;
+            border-radius: 26px;
         }
 
         QScrollArea#rightScrollArea > QWidget > QWidget {
@@ -227,18 +228,10 @@ class CTidyStudio(QMainWindow):
         right_layout = QVBoxLayout(scroll_content)
         right_layout.setAlignment(Qt.AlignTop)
         right_layout.setContentsMargins(10, 10, 10, 10)
-        right_layout.setSpacing(2)
+        right_layout.setSpacing(10)
 
-        slice_pos_label = QLabel("Slice position")
-        slice_pos_label.setAlignment(Qt.AlignCenter)
-        right_layout.addWidget(slice_pos_label)
-        right_layout.addSpacing(5)
-
-        right_layout.addLayout(self._create_slice_pos_controls(CardinalDirection.X, scroll_content))
-        right_layout.addSpacing(5)
-        right_layout.addLayout(self._create_slice_pos_controls(CardinalDirection.Y, scroll_content))
-        right_layout.addSpacing(5)
-        right_layout.addLayout(self._create_slice_pos_controls(CardinalDirection.Z, scroll_content))
+        right_layout.addWidget(self._create_slice_pos_controls(scroll_content))
+        right_layout.addWidget(self._create_doi_controls(scroll_content))
         
         right_container.setWidget(scroll_content)
 
@@ -255,10 +248,34 @@ class CTidyStudio(QMainWindow):
 
         return control
 
-    def _create_slice_pos_controls(self, direction: CardinalDirection, parent: QObject) -> QHBoxLayout:
+    @staticmethod
+    def _create_base_frame(parent: QObject) -> tuple[QFrame, QLayout]:
+        frame = QFrame(parent = parent)
+        frame.setStyleSheet("""
+            QFrame {
+                background: #353535;
+                border: 1px solid #696969;
+                border-radius: 16px;
+            }
+                            
+        QLabel {
+            color: white;
+            border: none;
+            background: transparent;
+        }
+        """)
+
+        layout = QVBoxLayout(frame)
+        layout.setSpacing(0)
+        layout.setContentsMargins(10, 6, 10, 10)
+
+        return frame, layout
+
+    def _create_slice_pos_control(self, direction: CardinalDirection, parent: QObject) -> QHBoxLayout:
         signal = self.app_state.slice_pos_changed
         
         layout = QHBoxLayout()
+        layout.setSpacing(5)
 
         btn = QPushButton()
         btn.clicked.connect(partial(self.app_state.on_switch_slice_pos_show_dir_request, direction))
@@ -323,6 +340,39 @@ class CTidyStudio(QMainWindow):
 
         return layout
 
+    def _create_slice_pos_controls(self, parent: QObject) -> QFrame:
+        frame, layout = self._create_base_frame(parent)
+
+        label = QLabel("Slice position")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+
+        layout.addSpacing(5)
+
+        layout.addLayout(self._create_slice_pos_control(CardinalDirection.X, frame))
+        layout.addSpacing(5)
+        layout.addLayout(self._create_slice_pos_control(CardinalDirection.Y, frame))
+        layout.addSpacing(5)
+        layout.addLayout(self._create_slice_pos_control(CardinalDirection.Z, frame))
+
+        return frame
+
+    def _create_doi_controls(self, parent: QObject) -> QFrame:
+        frame, layout = self._create_base_frame(parent)
+
+        label = QLabel("Domain of interest controls")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+
+        layout.addSpacing(5)
+
+        layout.addLayout(self._create_slice_pos_control(CardinalDirection.X, frame))
+        layout.addSpacing(5)
+        layout.addLayout(self._create_slice_pos_control(CardinalDirection.Y, frame))
+        layout.addSpacing(5)
+        layout.addLayout(self._create_slice_pos_control(CardinalDirection.Z, frame))
+
+        return frame
 
 class SliceView(QGraphicsView):
     BAR_WIDTH_RATIO: Final = 0.1
