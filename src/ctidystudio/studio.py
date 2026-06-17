@@ -50,7 +50,8 @@ from ctidystudio.data_handling import (
     CardinalDirection,
     Orientation,
     Scan,
-    Point
+    Point,
+    Domain_of_interest
 )
 
 
@@ -89,6 +90,7 @@ class AppState(QObject):
         self._scan_rotation_in_view_ref = Rotation.identity()
         self._slice_pos = Point(np.array([0, 0, 0]))
         self._slice_pos_show_dir = [False, False, False]
+        self._doi = Domain_of_interest(Point(np.array([0, 0, 0])), Point(np.array(scan.shape) - 1))
 
     @property
     def scan(self):

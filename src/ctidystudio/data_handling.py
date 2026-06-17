@@ -275,6 +275,10 @@ class Scan:
         volume = np.stack(slices)
         return cls(voxel_size, volume)
 
+@dataclass
+class Domain_of_interest:
+    min_point: Point
+    max_point: Point
 
 # from pathlib import Path
 # from enum import Enum
