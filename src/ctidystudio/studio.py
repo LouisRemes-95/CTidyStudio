@@ -13,6 +13,7 @@ from PySide6.QtCore import (
     Qt,
     QPoint,
     QPointF,
+    QRectF,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -31,6 +32,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QLabel,
     QScrollArea,
+    QGraphicsRectItem,
 )
 from PySide6.QtGui import (
     QColor,
@@ -375,6 +377,8 @@ class SliceView(QGraphicsView):
         self._horizontal_slice_line = QGraphicsLineItem(parent = self._pixmap_item)
         self._vertical_slice_line = QGraphicsLineItem(parent = self._pixmap_item)
 
+        self._rectangle_doi_outline = QGraphicsRectItem(parent = self._pixmap_item)
+
     def _build_conections(self):
         self.rotation_request.connect(self.app_state.on_rotation_request)
 
@@ -387,6 +391,7 @@ class SliceView(QGraphicsView):
         super().showEvent(event)
         
         self._update_slice_lines()
+        self._update_doi_outline()
         self._fit_view(False)
 
     def resizeEvent(self, event) -> None:
@@ -523,9 +528,6 @@ class SliceView(QGraphicsView):
 
         draw_text(text_x, text_y, str(view_orientation_in_view_coord.up), view_orientation_in_view_coord.up.associated_color)
 
-
-        
-
         painter.restore()
 
     def _update_view(self):
@@ -590,7 +592,7 @@ class SliceView(QGraphicsView):
             self.scale(fit_scale, fit_scale)
         
         self._update_view_center()
-        self._update_slice_line_thickness()
+        self._update_outlines()
 
     def _update_slice_lines(self):
         view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state._scan_rotation_in_view_ref.inv())
@@ -604,18 +606,26 @@ class SliceView(QGraphicsView):
         self._vertical_slice_line.setLine(slice_pos_in_pixmap_coord.x(), 0, slice_pos_in_pixmap_coord.x(), self._pixmap_item.boundingRect().height())
         self._vertical_slice_line.setPen(QPen(view_orientation_in_view_coord.right.associated_color, 1))
         self._vertical_slice_line.setZValue(10)
-        self._update_slice_line_thickness()
+        self._update_outlines()
 
         self._horizontal_slice_line.setVisible(self.app_state._slice_pos_show_dir[view_orientation_in_view_coord.up.dir])
         self._vertical_slice_line.setVisible(self.app_state._slice_pos_show_dir[view_orientation_in_view_coord.right.dir])
 
-    def _update_slice_line_thickness(self):
+    def _update_outlines(self):
         min_viewport_dimension = min(self.viewport().height(), self.viewport().width()) / self.transform().m11()
         line_thickness = min_viewport_dimension * self.SLICE_LINE_RATIO
 
         self._horizontal_slice_line.setPen(QPen(self._horizontal_slice_line.pen().color(), line_thickness))
-        
         self._vertical_slice_line.setPen(QPen(self._vertical_slice_line.pen().color(), line_thickness))
+        self._rectangle_doi_outline.setPen(QPen(self._rectangle_doi_outline.pen().color(), line_thickness))
+
+    def _update_doi_outline(self):
+        min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state._doi.min_point))
+        max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state._doi.max_point))
+
+        self._rectangle_doi_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
+        self._rectangle_doi_outline.setPen(QPen(QColor("red"), 1))
+        self._update_outlines()
 
     def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:
         btn = QPushButton(text, self)
