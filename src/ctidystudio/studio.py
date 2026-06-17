@@ -85,6 +85,7 @@ def _to_si(x: int, unit: str = "m") -> str:
 class AppState(QObject):
     view_changed = Signal()
     slice_pos_changed = Signal()
+    doi_changed = Signal()
 
     def __init__(self, scan: Scan) -> None:
         super().__init__()
@@ -384,8 +385,12 @@ class SliceView(QGraphicsView):
 
         self.app_state.view_changed.connect(self._update_view)
         self.app_state.view_changed.connect(self._update_slice_lines)
+        self.app_state.view_changed.connect(self._update_doi_outline)
+
         self.app_state.slice_pos_changed.connect(self._update_view)
         self.app_state.slice_pos_changed.connect(self._update_slice_lines)
+
+        self.app_state.doi_changed.connect(self._update_doi_outline)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
