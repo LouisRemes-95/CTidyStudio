@@ -58,6 +58,9 @@ from ctidystudio.data_handling import (
 )
 
 
+DOI_COLOR = QColor("red")
+
+
 SI_PREFIXES = {
     -12: "p",   # pico
     -9:  "n",   # nano
@@ -95,6 +98,7 @@ class AppState(QObject):
         self._slice_pos = Point(np.array([0, 0, 0]))
         self._slice_pos_show_dir = [False, False, False]
         self._doi = Domain_of_interest(Point(np.array([0, 0, 0])), Point(np.array(scan.shape) - 1))
+        self._doi_show = False
 
     @property
     def scan(self):
@@ -108,9 +112,22 @@ class AppState(QObject):
     def slice_pos(self):
         return self._slice_pos
     
+    @property
+    def slice_pos_show_dir(self):
+        return self._slice_pos_show_dir
+    
+    @property
+    def doi(self):
+        return self._doi
+    
+    @property
+    def doi_show(self):
+        return self._doi_show
+    
     def fire_all_signals(self):
         self.view_changed.emit()
         self.slice_pos_changed.emit()
+        self.doi_changed.emit()
 
     def on_rotation_request(self, rotation: Rotation) -> None:
         self._scan_rotation_in_view_ref = rotation * self._scan_rotation_in_view_ref
@@ -131,6 +148,11 @@ class AppState(QObject):
     def on_switch_slice_pos_show_dir_request(self, direction: CardinalDirection):
         self._slice_pos_show_dir[direction.dir] = not self._slice_pos_show_dir[direction.dir]
         self.slice_pos_changed.emit()
+
+    def on_switch_doi_show_request(self):
+        self._doi_show = not self._doi_show
+        self.doi_changed.emit()
+
 
 class CTidyStudio(QMainWindow):
     def __init__(self, scan: Scan) -> None:
@@ -282,7 +304,7 @@ class CTidyStudio(QMainWindow):
         btn.setFixedWidth(95)
 
         def update_btn(btn: QPushButton, direction: CardinalDirection) -> None:
-            if self.app_state._slice_pos_show_dir[direction.dir]:
+            if self.app_state.slice_pos_show_dir[direction.dir]:
                 btn.setText(f"Hide {direction} Slice")
 
                 btn.setStyleSheet(f"""
@@ -366,11 +388,70 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(5)
 
-        layout.addLayout(self._create_slice_pos_control(CardinalDirection.X, frame))
-        layout.addSpacing(5)
-        layout.addLayout(self._create_slice_pos_control(CardinalDirection.Y, frame))
-        layout.addSpacing(5)
-        layout.addLayout(self._create_slice_pos_control(CardinalDirection.Z, frame))
+        signal = self.app_state.doi_changed
+        
+        contorls_layout = QHBoxLayout()
+        layout.addLayout(contorls_layout)
+        contorls_layout.setSpacing(5)
+
+        btn = QPushButton()
+        btn.clicked.connect(self.app_state.on_switch_doi_show_request)
+        btn.setFixedWidth(95)
+
+        def update_btn(btn: QPushButton) -> None:
+            if self.app_state.doi_show:
+                btn.setText(f"Hide DOI")
+
+                btn.setStyleSheet(f"""
+                        QPushButton {{
+                            background-color: {DOI_COLOR.name()};
+                            color: white;
+                            border: 1px solid #666;
+                            border-radius: 6px;
+                            padding: 6px 10px;
+                            font-size: 12px;
+                        }}
+                        QPushButton:hover {{
+                            background-color: {DOI_COLOR.darker(130).name()};
+                            border: 1px solid #7aa2d6;
+                        }}
+                        QPushButton:pressed {{
+                            background-color: {DOI_COLOR.name()};
+                        }}
+                    """)
+                
+            else:
+                btn.setText(f"Show DOI")
+
+                btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #3a3a3a;
+                            color: white;
+                            border: 1px solid #666;
+                            border-radius: 6px;
+                            padding: 6px 10px;
+                            font-size: 12px;
+                        }
+                        QPushButton:hover {
+                            background-color: #4a6fa5;
+                            border: 1px solid #7aa2d6;
+                        }
+                        QPushButton:pressed {
+                            background-color: #34527a;
+                        }
+                    """)
+            
+        signal.connect(partial(update_btn, btn))
+
+        contorls_layout.addWidget(btn, 1)
+
+        # layout.addSpacing(5)
+
+        # layout.addLayout(self._create_slice_pos_control(CardinalDirection.X, frame))
+        # layout.addSpacing(5)
+        # layout.addLayout(self._create_slice_pos_control(CardinalDirection.Y, frame))
+        # layout.addSpacing(5)
+        # layout.addLayout(self._create_slice_pos_control(CardinalDirection.Z, frame))
 
         return frame
 
@@ -513,7 +594,7 @@ class SliceView(QGraphicsView):
         painter.drawRect(x, y, bar_width, bar_height)
 
         # Axis
-        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state._scan_rotation_in_view_ref.inv())
+        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state.scan_rotation_in_view_ref.inv())
 
         # Right axis
         horizontal_arrow = QPolygonF([
@@ -650,7 +731,7 @@ class SliceView(QGraphicsView):
         self._update_outlines()
 
     def _update_slice_lines(self):
-        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state._scan_rotation_in_view_ref.inv())
+        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state.scan_rotation_in_view_ref.inv())
 
         slice_pos_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.slice_pos))
         
@@ -663,8 +744,8 @@ class SliceView(QGraphicsView):
         self._vertical_slice_line.setZValue(10)
         self._update_outlines()
 
-        self._horizontal_slice_line.setVisible(self.app_state._slice_pos_show_dir[view_orientation_in_view_coord.up.dir])
-        self._vertical_slice_line.setVisible(self.app_state._slice_pos_show_dir[view_orientation_in_view_coord.right.dir])
+        self._horizontal_slice_line.setVisible(self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.up.dir])
+        self._vertical_slice_line.setVisible(self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.right.dir])
 
     def _update_outlines(self):
         min_viewport_dimension = min(self.viewport().height(), self.viewport().width()) / self.transform().m11()
@@ -675,11 +756,11 @@ class SliceView(QGraphicsView):
         self._rectangle_doi_outline.setPen(QPen(self._rectangle_doi_outline.pen().color(), line_thickness))
 
     def _update_doi_outline(self):
-        min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state._doi.min_point))
-        max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state._doi.max_point))
+        min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.doi.min_point))
+        max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.doi.max_point))
 
         self._rectangle_doi_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
-        self._rectangle_doi_outline.setPen(QPen(QColor("red"), 1))
+        self._rectangle_doi_outline.setPen(QPen(DOI_COLOR, 1))
         self._update_outlines()
 
     def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:
