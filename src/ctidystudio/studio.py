@@ -763,6 +763,8 @@ class SliceView(QGraphicsView):
         self._rectangle_doi_outline.setPen(QPen(DOI_COLOR, 1))
         self._update_outlines()
 
+        self._rectangle_doi_outline.setVisible(self.app_state.doi_show)
+
     def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:
         btn = QPushButton(text, self)
         btn.setFixedSize(36, 36)
