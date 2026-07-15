@@ -326,6 +326,8 @@ class CTidyStudio(QMainWindow):
         btn = QPushButton()
         btn.clicked.connect(partial(self.app_state.on_switch_slice_pos_show_dir_request, direction))
         btn.setFixedWidth(95)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setFocusPolicy(Qt.NoFocus)
 
         def update_btn(btn: QPushButton, direction: CardinalDirection) -> None:
             if self.app_state.slice_pos_show_dir[direction.dir]:
@@ -417,9 +419,9 @@ class CTidyStudio(QMainWindow):
         max_layout.setSpacing(5)
         layout.addLayout(max_layout)
 
-        min_label = QLabel("My text")
+        min_label = QLabel(f"Min. {direction} bound")
         min_layout.addWidget(min_label, 1)
-        max_label = QLabel("My text")
+        max_label = QLabel(f"Max. {direction} bound")
         max_layout.addWidget(max_label, 1)
 
         style_sheet = """
@@ -436,7 +438,7 @@ class CTidyStudio(QMainWindow):
         for label in [min_label, max_label]:
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setFixedWidth(95)
-            label.setStyleSheet(style_sheet)
+            # label.setStyleSheet(style_sheet)
 
         min_binding = IncrementControlBinding(
             partial(self.app_state.on_move_min_doi_request, direction),
@@ -481,6 +483,8 @@ class CTidyStudio(QMainWindow):
         btn = QPushButton()
         btn.clicked.connect(self.app_state.on_switch_doi_show_request)
         btn.setFixedWidth(95)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setFocusPolicy(Qt.NoFocus)
 
         def update_btn(btn: QPushButton) -> None:
             if self.app_state.doi_show:
@@ -980,7 +984,11 @@ class IncrementControl(QWidget):
             self.clicked.connect(self._on_clicked)
 
             self.setMinimumWidth(0)
-            self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+
+            self.setCursor(Qt.PointingHandCursor)
+            self.setFocusPolicy(Qt.NoFocus)
 
         def _on_clicked(self):
             self._on_increment_signal.emit(self._increment)
