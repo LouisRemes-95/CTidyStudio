@@ -149,6 +149,30 @@ class AppState(QObject):
         self._slice_pos_show_dir[direction.dir] = not self._slice_pos_show_dir[direction.dir]
         self.slice_pos_changed.emit()
 
+    def on_move_min_doi_request(self, direction: CardinalDirection, value:int):
+        self._doi.min_point.move(direction, value)
+        self._doi.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+
+        self.doi_changed.emit()
+
+    def on_move_max_doi_request(self, direction: CardinalDirection, value:int):
+        self._doi.max_point.move(direction, value)
+        self._doi.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+
+        self.doi_changed.emit()
+
+    def on_set_min_doi_request(self, direction: CardinalDirection, value: int):
+        self._doi.min_point.move_to(direction, value)
+        self._doi.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+
+        self.doi_changed.emit()
+
+    def on_set_max_doi_request(self, direction: CardinalDirection, value: int):
+        self._doi.max_point.move_to(direction, value)
+        self._doi.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+
+        self.doi_changed.emit()
+
     def on_switch_doi_show_request(self):
         self._doi_show = not self._doi_show
         self.doi_changed.emit()
@@ -253,22 +277,11 @@ class CTidyStudio(QMainWindow):
         right_layout.setSpacing(10)
 
         right_layout.addWidget(self._create_slice_pos_controls(scroll_content))
-        right_layout.addWidget(self._create_doi_controls(scroll_content))
+        right_layout.addWidget(self._create_doi_controls_panel(scroll_content))
         
         right_container.setWidget(scroll_content)
 
         return right_container
-
-    @staticmethod
-    def _create_increment_control(parent: QObject, binding: "IncrementControlBinding") -> "IncrementControl":
-        control = IncrementControl(parent)
-
-        control.increment_requested.connect(binding.on_increment)
-        control.value_submitted.connect(binding.on_submit)
-        
-        binding.refresh_signal.connect(lambda: control.set_value(binding.read_value()))
-
-        return control
 
     @staticmethod
     def _create_base_frame(parent: QObject) -> tuple[QFrame, QLayout]:
@@ -292,6 +305,17 @@ class CTidyStudio(QMainWindow):
         layout.setContentsMargins(10, 6, 10, 10)
 
         return frame, layout
+    
+    @staticmethod
+    def _create_increment_control(parent: QObject, binding: "IncrementControlBinding") -> "IncrementControl":
+        control = IncrementControl(parent)
+
+        control.increment_requested.connect(binding.on_increment)
+        control.value_submitted.connect(binding.on_submit)
+        
+        binding.refresh_signal.connect(lambda: control.set_value(binding.read_value()))
+
+        return control
 
     def _create_slice_pos_control(self, direction: CardinalDirection, parent: QObject) -> QHBoxLayout:
         signal = self.app_state.slice_pos_changed
@@ -379,7 +403,71 @@ class CTidyStudio(QMainWindow):
 
         return frame
 
-    def _create_doi_controls(self, parent: QObject) -> QFrame:
+    def _create_doi_control(self, direction: CardinalDirection, parent: QObject) -> QLayout:
+        signal = self.app_state.doi_changed
+
+        layout = QVBoxLayout()
+        layout.setSpacing(2)
+
+        min_layout = QHBoxLayout()
+        min_layout.setSpacing(5)
+        layout.addLayout(min_layout)
+
+        max_layout = QHBoxLayout()
+        max_layout.setSpacing(5)
+        layout.addLayout(max_layout)
+
+        min_label = QLabel("My text")
+        min_layout.addWidget(min_label, 1)
+        max_label = QLabel("My text")
+        max_layout.addWidget(max_label, 1)
+
+        style_sheet = """
+            QLabel {
+                background-color: #3a3a3a;
+                color: white;
+                border: 1px solid #666;
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+        """
+
+        for label in [min_label, max_label]:
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            label.setFixedWidth(95)
+            label.setStyleSheet(style_sheet)
+
+        min_binding = IncrementControlBinding(
+            partial(self.app_state.on_move_min_doi_request, direction),
+            partial(self.app_state.on_set_min_doi_request, direction),
+            signal,
+            lambda: self.app_state.doi.min_point.coord[direction.dir]
+        )
+        min_layout.addWidget(self._create_increment_control(parent, min_binding), 4)
+
+        max_binding = IncrementControlBinding(
+            partial(self.app_state.on_move_max_doi_request, direction),
+            partial(self.app_state.on_set_max_doi_request, direction),
+            signal,
+            lambda: self.app_state.doi.max_point.coord[direction.dir]
+        )
+        max_layout.addWidget(self._create_increment_control(parent, max_binding), 4)
+
+        return layout
+
+    def _create_doi_controls(self, parent: QObject) -> QLayout:
+        layout = QVBoxLayout()
+
+        layout.addLayout(self._create_doi_control(CardinalDirection.X, parent))
+        layout.addSpacing(5)
+        layout.addLayout(self._create_doi_control(CardinalDirection.Y, parent))
+        layout.addSpacing(5)
+        layout.addLayout(self._create_doi_control(CardinalDirection.Z, parent))
+
+        return layout
+
+    def _create_doi_controls_panel(self, parent: QObject) -> QFrame:
         frame, layout = self._create_base_frame(parent)
 
         label = QLabel("Domain of interest controls")
@@ -389,10 +477,6 @@ class CTidyStudio(QMainWindow):
         layout.addSpacing(5)
 
         signal = self.app_state.doi_changed
-        
-        contorls_layout = QHBoxLayout()
-        layout.addLayout(contorls_layout)
-        contorls_layout.setSpacing(5)
 
         btn = QPushButton()
         btn.clicked.connect(self.app_state.on_switch_doi_show_request)
@@ -443,15 +527,11 @@ class CTidyStudio(QMainWindow):
             
         signal.connect(partial(update_btn, btn))
 
-        contorls_layout.addWidget(btn, 1)
+        layout.addWidget(btn)
 
-        # layout.addSpacing(5)
+        layout.addSpacing(5)
 
-        # layout.addLayout(self._create_slice_pos_control(CardinalDirection.X, frame))
-        # layout.addSpacing(5)
-        # layout.addLayout(self._create_slice_pos_control(CardinalDirection.Y, frame))
-        # layout.addSpacing(5)
-        # layout.addLayout(self._create_slice_pos_control(CardinalDirection.Z, frame))
+        layout.addLayout(self._create_doi_controls(frame))
 
         return frame
 
