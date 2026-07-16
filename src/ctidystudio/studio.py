@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 from enum import Enum
-from typing import Final, Callable
+from typing import Final, Callable, Literal
 import numpy as np
 import math
 from dataclasses import dataclass
@@ -308,7 +308,12 @@ class CTidyStudio(QMainWindow):
     
     @staticmethod
     def _create_increment_control(parent: QObject, binding: "IncrementControlBinding") -> "IncrementControl":
-        control = IncrementControl(parent)
+        if binding.type == "small":
+            control = SmallIncrementControl(parent)
+        elif binding.type == "normal":  
+            control = IncrementControl(parent)
+        else :
+            raise ValueError(f"Unknown increment control type: {binding.type!r}")
 
         control.increment_requested.connect(binding.on_increment)
         control.value_submitted.connect(binding.on_submit)
@@ -375,6 +380,7 @@ class CTidyStudio(QMainWindow):
         signal.connect(partial(update_btn, btn, direction))
         
         binding = IncrementControlBinding(
+            "normal",
             partial(self.app_state.on_move_slice_pos_request, direction),
             partial(self.app_state.on_set_slice_pos_request, direction),
             signal,
@@ -441,6 +447,7 @@ class CTidyStudio(QMainWindow):
             # label.setStyleSheet(style_sheet)
 
         min_binding = IncrementControlBinding(
+            "normal",
             partial(self.app_state.on_move_min_doi_request, direction),
             partial(self.app_state.on_set_min_doi_request, direction),
             signal,
@@ -449,6 +456,7 @@ class CTidyStudio(QMainWindow):
         min_layout.addWidget(self._create_increment_control(parent, min_binding), 4)
 
         max_binding = IncrementControlBinding(
+            "normal",
             partial(self.app_state.on_move_max_doi_request, direction),
             partial(self.app_state.on_set_max_doi_request, direction),
             signal,
@@ -940,10 +948,50 @@ class SliceView(QGraphicsView):
 
 @dataclass(slots=True)
 class IncrementControlBinding:
+    type: Literal["small", "normal"]
     on_increment: Callable[[int], None]
     on_submit: Callable[[int], None]
     refresh_signal: Signal
     read_value: Callable[[], int]
+
+
+class IncrementButton(QPushButton):
+    def __init__(self, text: str, increment: int, on_increment_signal: Signal, parent: QObject = None) -> None:
+        super().__init__(text, parent)
+
+        self._increment = increment
+        self._on_increment_signal = on_increment_signal
+
+        self.setCursor(Qt.PointingHandCursor)
+        self.setStyleSheet("""
+            QPushButton {
+                background-color: #3a3a3a;
+                color: white;
+                border: 1px solid #666;
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #4a6fa5;
+                border: 1px solid #7aa2d6;
+            }
+            QPushButton:pressed {
+                background-color: #34527a;
+            }
+        """)
+
+        self.clicked.connect(self._on_clicked)
+
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFocusPolicy(Qt.NoFocus)
+
+    def _on_clicked(self):
+        self._on_increment_signal.emit(self._increment)
 
 
 class IncrementControl(QWidget):
@@ -954,61 +1002,23 @@ class IncrementControl(QWidget):
         super().__init__(parent)
 
         self._build_dependencies()
-        
-    class IncrementButton(QPushButton):
-        def __init__(self, text: str, increment: int, on_increment_signal: Signal, parent: QObject = None) -> None:
-            super().__init__(text, parent)
-
-            self._increment = increment
-            self._on_increment_signal = on_increment_signal
-
-            self.setCursor(Qt.PointingHandCursor)
-            self.setStyleSheet("""
-                QPushButton {
-                    background-color: #3a3a3a;
-                    color: white;
-                    border: 1px solid #666;
-                    border-radius: 6px;
-                    padding: 6px 10px;
-                    font-size: 12px;
-                }
-                QPushButton:hover {
-                    background-color: #4a6fa5;
-                    border: 1px solid #7aa2d6;
-                }
-                QPushButton:pressed {
-                    background-color: #34527a;
-                }
-            """)
-
-            self.clicked.connect(self._on_clicked)
-
-            self.setMinimumWidth(0)
-            self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-
-
-            self.setCursor(Qt.PointingHandCursor)
-            self.setFocusPolicy(Qt.NoFocus)
-
-        def _on_clicked(self):
-            self._on_increment_signal.emit(self._increment)
 
     def _build_dependencies(self) -> None:
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
 
-        self._decrease_100_btn = self.IncrementButton("---", -100, self.increment_requested, parent = self)
-        self._decrease_10_btn = self.IncrementButton("--", -10, self.increment_requested, parent = self)
-        self._decrease_1_btn = self.IncrementButton("-", -1, self.increment_requested, parent = self)
+        self._decrease_100_btn = IncrementButton("---", -100, self.increment_requested, parent = self)
+        self._decrease_10_btn = IncrementButton("--", -10, self.increment_requested, parent = self)
+        self._decrease_1_btn = IncrementButton("-", -1, self.increment_requested, parent = self)
 
         self._editable_display = QLineEdit(parent = self)
         self._editable_display.setAlignment(Qt.AlignCenter)
         self._editable_display.returnPressed.connect(self._on_value_submitted)
 
-        self._increase_1_btn = self.IncrementButton("+", 1, self.increment_requested, parent = self)
-        self._increase_10_btn = self.IncrementButton("++", 10, self.increment_requested, parent = self)
-        self._increase_100_btn = self.IncrementButton("+++", 100, self.increment_requested, parent = self)
+        self._increase_1_btn = IncrementButton("+", 1, self.increment_requested, parent = self)
+        self._increase_10_btn = IncrementButton("++", 10, self.increment_requested, parent = self)
+        self._increase_100_btn = IncrementButton("+++", 100, self.increment_requested, parent = self)
 
         layout.addWidget(self._decrease_100_btn, 3)
         layout.addWidget(self._decrease_10_btn, 2)
@@ -1017,6 +1027,62 @@ class IncrementControl(QWidget):
         layout.addWidget(self._increase_1_btn, 1)
         layout.addWidget(self._increase_10_btn, 2)
         layout.addWidget(self._increase_100_btn, 3)
+
+        self.setStyleSheet("""
+            #controlPanel {
+                background-color: #2b2b2b;
+                border: 1px solid white;
+                border-radius: 12px;
+            }
+            QLineEdit {
+                background-color: #3a3a3a;
+                color: white;
+                border: 1px solid #666;
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #7aa2d6;
+            }
+        """)
+
+    def _on_value_submitted(self) -> None:
+        text = self._editable_display.text().strip()
+        if not text:
+            return
+
+        self.value_submitted.emit(int(text))
+
+    def set_value(self, value: int) -> None:
+        self._editable_display.setText(str(value))
+
+
+class SmallIncrementControl(QWidget):
+    increment_requested = Signal(int)
+    value_submitted = Signal(int)
+
+    def __init__(self, parent: QObject = None) -> None:
+        super().__init__(parent)
+
+        self._build_dependencies()
+
+    def _build_dependencies(self) -> None:
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+
+        self._decrease_1_btn = IncrementButton("-", -1, self.increment_requested, parent = self)
+
+        self._editable_display = QLineEdit(parent = self)
+        self._editable_display.setAlignment(Qt.AlignCenter)
+        self._editable_display.returnPressed.connect(self._on_value_submitted)
+
+        self._increase_1_btn = IncrementButton("+", 1, self.increment_requested, parent = self)
+
+        layout.addWidget(self._decrease_1_btn, 1)
+        layout.addWidget(self._editable_display, 4)
+        layout.addWidget(self._increase_1_btn, 1)
 
         self.setStyleSheet("""
             #controlPanel {
