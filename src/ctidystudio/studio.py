@@ -54,7 +54,8 @@ from ctidystudio.data_handling import (
     Orientation,
     Scan,
     Point,
-    Domain_of_interest
+    Domain,
+    SamplingDomain
 )
 
 
@@ -97,8 +98,8 @@ class AppState(QObject):
         self._scan_rotation_in_view_ref = Rotation.identity()
         self._slice_pos = Point(np.array([0, 0, 0]))
         self._slice_pos_show_dir = [False, False, False]
-        self._doi = Domain_of_interest(Point(np.array([0, 0, 0])), Point(np.array(scan.shape) - 1))
-        self._doi_show = False
+        self._sd = SamplingDomain(Point(np.array([0, 0, 0])), Point(np.array(scan.shape) - 1))
+        self._sd_show = False
 
     @property
     def scan(self):
@@ -117,12 +118,12 @@ class AppState(QObject):
         return self._slice_pos_show_dir
     
     @property
-    def doi(self):
-        return self._doi
+    def sd(self):
+        return self._sd
     
     @property
-    def doi_show(self):
-        return self._doi_show
+    def sd_show(self):
+        return self._sd_show
     
     def fire_all_signals(self):
         self.view_changed.emit()
@@ -150,31 +151,31 @@ class AppState(QObject):
         self.slice_pos_changed.emit()
 
     def on_move_min_doi_request(self, direction: CardinalDirection, value:int):
-        self._doi.min_point.move(direction, value)
-        self._doi.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._sd.min_point.move(direction, value)
+        self._sd.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.doi_changed.emit()
 
     def on_move_max_doi_request(self, direction: CardinalDirection, value:int):
-        self._doi.max_point.move(direction, value)
-        self._doi.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._sd.max_point.move(direction, value)
+        self._sd.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.doi_changed.emit()
 
     def on_set_min_doi_request(self, direction: CardinalDirection, value: int):
-        self._doi.min_point.move_to(direction, value)
-        self._doi.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._sd.min_point.move_to(direction, value)
+        self._sd.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.doi_changed.emit()
 
     def on_set_max_doi_request(self, direction: CardinalDirection, value: int):
-        self._doi.max_point.move_to(direction, value)
-        self._doi.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._sd.max_point.move_to(direction, value)
+        self._sd.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.doi_changed.emit()
 
     def on_switch_doi_show_request(self):
-        self._doi_show = not self._doi_show
+        self._sd_show = not self._sd_show
         self.doi_changed.emit()
 
 
@@ -277,7 +278,7 @@ class CTidyStudio(QMainWindow):
         right_layout.setSpacing(10)
 
         right_layout.addWidget(self._create_slice_pos_controls(scroll_content))
-        right_layout.addWidget(self._create_doi_controls_panel(scroll_content))
+        right_layout.addWidget(self._create_sampling_domain_controls_panel(scroll_content))
         
         right_container.setWidget(scroll_content)
 
@@ -411,7 +412,7 @@ class CTidyStudio(QMainWindow):
 
         return frame
 
-    def _create_doi_control(self, direction: CardinalDirection, parent: QObject) -> QLayout:
+    def _create_sampling_domain_control(self, direction: CardinalDirection, parent: QObject) -> QLayout:
         signal = self.app_state.doi_changed
 
         layout = QVBoxLayout()
@@ -451,7 +452,7 @@ class CTidyStudio(QMainWindow):
             partial(self.app_state.on_move_min_doi_request, direction),
             partial(self.app_state.on_set_min_doi_request, direction),
             signal,
-            lambda: self.app_state.doi.min_point.coord[direction.dir]
+            lambda: self.app_state.sd.min_point.coord[direction.dir]
         )
         min_layout.addWidget(self._create_increment_control(parent, min_binding), 4)
 
@@ -460,27 +461,27 @@ class CTidyStudio(QMainWindow):
             partial(self.app_state.on_move_max_doi_request, direction),
             partial(self.app_state.on_set_max_doi_request, direction),
             signal,
-            lambda: self.app_state.doi.max_point.coord[direction.dir]
+            lambda: self.app_state.sd.max_point.coord[direction.dir]
         )
         max_layout.addWidget(self._create_increment_control(parent, max_binding), 4)
 
         return layout
 
-    def _create_doi_controls(self, parent: QObject) -> QLayout:
+    def _create_sampling_domain_controls(self, parent: QObject) -> QLayout:
         layout = QVBoxLayout()
 
-        layout.addLayout(self._create_doi_control(CardinalDirection.X, parent))
+        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.X, parent))
         layout.addSpacing(5)
-        layout.addLayout(self._create_doi_control(CardinalDirection.Y, parent))
+        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.Y, parent))
         layout.addSpacing(5)
-        layout.addLayout(self._create_doi_control(CardinalDirection.Z, parent))
+        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.Z, parent))
 
         return layout
 
-    def _create_doi_controls_panel(self, parent: QObject) -> QFrame:
+    def _create_sampling_domain_controls_panel(self, parent: QObject) -> QFrame:
         frame, layout = self._create_base_frame(parent)
 
-        label = QLabel("Domain of interest controls")
+        label = QLabel("Sampling domain controls")
         label.setAlignment(Qt.AlignCenter)
         layout.addWidget(label)
 
@@ -495,7 +496,7 @@ class CTidyStudio(QMainWindow):
         btn.setFocusPolicy(Qt.NoFocus)
 
         def update_btn(btn: QPushButton) -> None:
-            if self.app_state.doi_show:
+            if self.app_state.sd_show:
                 btn.setText(f"Hide DOI")
 
                 btn.setStyleSheet(f"""
@@ -543,7 +544,7 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(5)
 
-        layout.addLayout(self._create_doi_controls(frame))
+        layout.addLayout(self._create_sampling_domain_controls(frame))
 
         return frame
 
@@ -848,14 +849,14 @@ class SliceView(QGraphicsView):
         self._rectangle_doi_outline.setPen(QPen(self._rectangle_doi_outline.pen().color(), line_thickness))
 
     def _update_doi_outline(self):
-        min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.doi.min_point))
-        max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.doi.max_point))
+        min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.min_point))
+        max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.max_point))
 
         self._rectangle_doi_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
         self._rectangle_doi_outline.setPen(QPen(DOI_COLOR, 1))
         self._update_outlines()
 
-        self._rectangle_doi_outline.setVisible(self.app_state.doi_show)
+        self._rectangle_doi_outline.setVisible(self.app_state.sd_show)
 
     def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:
         btn = QPushButton(text, self)
