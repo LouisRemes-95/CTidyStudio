@@ -150,31 +150,31 @@ class AppState(QObject):
         self._slice_pos_show_dir[direction.dir] = not self._slice_pos_show_dir[direction.dir]
         self.slice_pos_changed.emit()
 
-    def on_move_min_doi_request(self, direction: CardinalDirection, value:int):
+    def on_move_min_sd_request(self, direction: CardinalDirection, value:int):
         self._sd.min_point.move(direction, value)
         self._sd.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.doi_changed.emit()
 
-    def on_move_max_doi_request(self, direction: CardinalDirection, value:int):
+    def on_move_max_sd_request(self, direction: CardinalDirection, value:int):
         self._sd.max_point.move(direction, value)
         self._sd.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.doi_changed.emit()
 
-    def on_set_min_doi_request(self, direction: CardinalDirection, value: int):
+    def on_set_min_sd_request(self, direction: CardinalDirection, value: int):
         self._sd.min_point.move_to(direction, value)
         self._sd.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.doi_changed.emit()
 
-    def on_set_max_doi_request(self, direction: CardinalDirection, value: int):
+    def on_set_max_sd_request(self, direction: CardinalDirection, value: int):
         self._sd.max_point.move_to(direction, value)
         self._sd.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.doi_changed.emit()
 
-    def on_switch_doi_show_request(self):
+    def on_switch_sd_show_request(self):
         self._sd_show = not self._sd_show
         self.doi_changed.emit()
 
@@ -323,25 +323,20 @@ class CTidyStudio(QMainWindow):
 
         return control
 
-    def _create_slice_pos_control(self, direction: CardinalDirection, parent: QObject) -> QHBoxLayout:
-        signal = self.app_state.slice_pos_changed
-        
-        layout = QHBoxLayout()
-        layout.setSpacing(5)
-
+    def _create_show_button(self, text: str, action: Callable, update_signal: Signal, Color: QColor, is_shown: Callable[[], bool]):
         btn = QPushButton()
-        btn.clicked.connect(partial(self.app_state.on_switch_slice_pos_show_dir_request, direction))
+        btn.clicked.connect(action)
         btn.setFixedWidth(95)
         btn.setCursor(Qt.PointingHandCursor)
         btn.setFocusPolicy(Qt.NoFocus)
 
-        def update_btn(btn: QPushButton, direction: CardinalDirection) -> None:
-            if self.app_state.slice_pos_show_dir[direction.dir]:
-                btn.setText(f"Hide {direction} Slice")
+        def update_btn() -> None:
+            if is_shown():
+                btn.setText(f"Hide {text}")
 
                 btn.setStyleSheet(f"""
                         QPushButton {{
-                            background-color: {direction.associated_color.name()};
+                            background-color: {Color.name()};
                             color: white;
                             border: 1px solid #666;
                             border-radius: 6px;
@@ -349,16 +344,16 @@ class CTidyStudio(QMainWindow):
                             font-size: 12px;
                         }}
                         QPushButton:hover {{
-                            background-color: {direction.associated_color.darker(130).name()};
+                            background-color: {Color.darker(130).name()};
                             border: 1px solid #7aa2d6;
                         }}
                         QPushButton:pressed {{
-                            background-color: {direction.associated_color.name()};
+                            background-color: {Color.name()};
                         }}
                     """)
                 
             else:
-                btn.setText(f"Show {direction} Slice")
+                btn.setText(f"Show {text}")
 
                 btn.setStyleSheet("""
                         QPushButton {
@@ -378,7 +373,23 @@ class CTidyStudio(QMainWindow):
                         }
                     """)
             
-        signal.connect(partial(update_btn, btn, direction))
+        update_signal.connect(update_btn)
+
+        return btn
+
+    def _create_slice_pos_control(self, direction: CardinalDirection, parent: QObject) -> QHBoxLayout:
+        signal = self.app_state.slice_pos_changed
+        
+        layout = QHBoxLayout()
+        layout.setSpacing(5)
+
+        btn = self._create_show_button(
+            f"{direction} Slice", 
+            partial(self.app_state.on_switch_slice_pos_show_dir_request, direction), 
+            signal, 
+            direction.associated_color, 
+            lambda: self.app_state.slice_pos_show_dir[direction.dir]
+            )
         
         binding = IncrementControlBinding(
             "normal",
@@ -431,26 +442,14 @@ class CTidyStudio(QMainWindow):
         max_label = QLabel(f"Max. {direction} bound")
         max_layout.addWidget(max_label, 1)
 
-        style_sheet = """
-            QLabel {
-                background-color: #3a3a3a;
-                color: white;
-                border: 1px solid #666;
-                border-radius: 6px;
-                padding: 6px 10px;
-                font-size: 12px;
-            }
-        """
-
         for label in [min_label, max_label]:
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setFixedWidth(95)
-            # label.setStyleSheet(style_sheet)
 
         min_binding = IncrementControlBinding(
             "normal",
-            partial(self.app_state.on_move_min_doi_request, direction),
-            partial(self.app_state.on_set_min_doi_request, direction),
+            partial(self.app_state.on_move_min_sd_request, direction),
+            partial(self.app_state.on_set_min_sd_request, direction),
             signal,
             lambda: self.app_state.sd.min_point.coord[direction.dir]
         )
@@ -458,8 +457,8 @@ class CTidyStudio(QMainWindow):
 
         max_binding = IncrementControlBinding(
             "normal",
-            partial(self.app_state.on_move_max_doi_request, direction),
-            partial(self.app_state.on_set_max_doi_request, direction),
+            partial(self.app_state.on_move_max_sd_request, direction),
+            partial(self.app_state.on_set_max_sd_request, direction),
             signal,
             lambda: self.app_state.sd.max_point.coord[direction.dir]
         )
@@ -478,6 +477,12 @@ class CTidyStudio(QMainWindow):
 
         return layout
 
+    def _create_grid_divisions_control(self, parent: QObject) -> QLayout:
+        layout = QHBoxLayout()
+
+
+        return layout
+
     def _create_sampling_domain_controls_panel(self, parent: QObject) -> QFrame:
         frame, layout = self._create_base_frame(parent)
 
@@ -487,64 +492,23 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(5)
 
-        signal = self.app_state.doi_changed
-
-        btn = QPushButton()
-        btn.clicked.connect(self.app_state.on_switch_doi_show_request)
-        btn.setFixedWidth(95)
-        btn.setCursor(Qt.PointingHandCursor)
-        btn.setFocusPolicy(Qt.NoFocus)
-
-        def update_btn(btn: QPushButton) -> None:
-            if self.app_state.sd_show:
-                btn.setText(f"Hide DOI")
-
-                btn.setStyleSheet(f"""
-                        QPushButton {{
-                            background-color: {DOI_COLOR.name()};
-                            color: white;
-                            border: 1px solid #666;
-                            border-radius: 6px;
-                            padding: 6px 10px;
-                            font-size: 12px;
-                        }}
-                        QPushButton:hover {{
-                            background-color: {DOI_COLOR.darker(130).name()};
-                            border: 1px solid #7aa2d6;
-                        }}
-                        QPushButton:pressed {{
-                            background-color: {DOI_COLOR.name()};
-                        }}
-                    """)
-                
-            else:
-                btn.setText(f"Show DOI")
-
-                btn.setStyleSheet("""
-                        QPushButton {
-                            background-color: #3a3a3a;
-                            color: white;
-                            border: 1px solid #666;
-                            border-radius: 6px;
-                            padding: 6px 10px;
-                            font-size: 12px;
-                        }
-                        QPushButton:hover {
-                            background-color: #4a6fa5;
-                            border: 1px solid #7aa2d6;
-                        }
-                        QPushButton:pressed {
-                            background-color: #34527a;
-                        }
-                    """)
-            
-        signal.connect(partial(update_btn, btn))
+        btn = self._create_show_button("DOI", self.app_state.on_switch_sd_show_request, self.app_state.doi_changed, DOI_COLOR, lambda: self.app_state.sd_show)
 
         layout.addWidget(btn)
 
         layout.addSpacing(5)
 
         layout.addLayout(self._create_sampling_domain_controls(frame))
+
+        layout.addSpacing(10)
+
+        label = QLabel("Grid divisions")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+
+        layout.addSpacing(5)
+
+        layout.addLayout(self._create_grid_divisions_control(frame))
 
         return frame
 
