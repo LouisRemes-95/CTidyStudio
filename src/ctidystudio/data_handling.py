@@ -286,6 +286,16 @@ class SamplingDomain(Domain):
     # UnidirAuto, computes the voxel depth equal to the max X or Y dimension
     type: Literal["Full", "Unidir", "UnidirAuto", "Bidir"] = "Full"
     grid_divisions: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
-    # doi_size = number divisions making up the doi in the x and z directions respectivelly, if Unidir doi_size[1] = Z voxel depth
-    doi_size: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(2, dtype=int))
+    # doi_size = number divisions making up the doi, if Unidir doi_size[1] = Z voxel depth
+    doi_size: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
     seed: int = 0
+
+    def add_grid_divisions(self, direction: CardinalDirection, value: int) -> None:
+        self.grid_divisions[direction.dir] += value
+
+        np.maximum(self.grid_divisions, 0, out=self.grid_divisions)
+
+    def set_grid_divisions(self, direction: CardinalDirection, value: int) -> None:
+        self.grid_divisions[direction.dir] = value
+
+        np.maximum(self.grid_divisions, 0, out=self.grid_divisions)

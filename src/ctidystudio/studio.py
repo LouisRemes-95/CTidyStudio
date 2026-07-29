@@ -185,10 +185,14 @@ class AppState(QObject):
         self.sd_changed.emit()
 
     def on_add_grid_divisions_request(self, direction: CardinalDirection, value: int):
-        pass    
+        self.sd.add_grid_divisions(direction, value)
+
+        self.sd_changed.emit()
 
     def on_set_grid_divisions_request(self, direction: CardinalDirection, value: int):
-        pass
+        self.sd.set_grid_divisions(direction, value)
+
+        self.sd_changed.emit()
 
     def on_switch_grid_show_request(self):
         self._grid_show = not self._grid_show
@@ -512,9 +516,9 @@ class CTidyStudio(QMainWindow):
         x_binding = IncrementControlBinding(
             "small",
             partial(self.app_state.on_add_grid_divisions_request, CardinalDirection.X),
-            partial(self.app_state.on_set_grid_divisions_request, CardinalDirection.Y),
+            partial(self.app_state.on_set_grid_divisions_request, CardinalDirection.X),
             signal,
-            lambda: self.app_state.sd.grid_divisions[0]
+            lambda: self.app_state.sd.grid_divisions[CardinalDirection.X.dir]
         )
 
         x_increment_button = self._create_increment_control(parent, x_binding)
@@ -523,10 +527,10 @@ class CTidyStudio(QMainWindow):
         
         z_binding = IncrementControlBinding(
             "small",
-            partial(self.app_state.on_add_grid_divisions_request, CardinalDirection.X),
-            partial(self.app_state.on_set_grid_divisions_request, CardinalDirection.Y),
+            partial(self.app_state.on_add_grid_divisions_request, CardinalDirection.Z),
+            partial(self.app_state.on_set_grid_divisions_request, CardinalDirection.Z),
             signal,
-            lambda: self.app_state.sd.grid_divisions[0]
+            lambda: self.app_state.sd.grid_divisions[CardinalDirection.Z.dir]
         )
 
         z_increment_button = self._create_increment_control(parent, z_binding)
