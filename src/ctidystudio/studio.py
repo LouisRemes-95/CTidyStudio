@@ -59,7 +59,8 @@ from ctidystudio.data_handling import (
 )
 
 
-DOI_COLOR = QColor("red")
+SD_COLOR = QColor("red")
+GRID_COLOR = QColor("#B89B00")
 
 
 SI_PREFIXES = {
@@ -90,7 +91,7 @@ def _to_si(x: int, unit: str = "m") -> str:
 class AppState(QObject):
     view_changed = Signal()
     slice_pos_changed = Signal()
-    doi_changed = Signal()
+    sd_changed = Signal()
 
     def __init__(self, scan: Scan) -> None:
         super().__init__()
@@ -100,6 +101,7 @@ class AppState(QObject):
         self._slice_pos_show_dir = [False, False, False]
         self._sd = SamplingDomain(Point(np.array([0, 0, 0])), Point(np.array(scan.shape) - 1))
         self._sd_show = False
+        self._grid_show = False
 
     @property
     def scan(self):
@@ -125,10 +127,14 @@ class AppState(QObject):
     def sd_show(self):
         return self._sd_show
     
+    @property
+    def grid_show(self):
+        return self._grid_show
+    
     def fire_all_signals(self):
         self.view_changed.emit()
         self.slice_pos_changed.emit()
-        self.doi_changed.emit()
+        self.sd_changed.emit()
 
     def on_rotation_request(self, rotation: Rotation) -> None:
         self._scan_rotation_in_view_ref = rotation * self._scan_rotation_in_view_ref
@@ -154,29 +160,39 @@ class AppState(QObject):
         self._sd.min_point.move(direction, value)
         self._sd.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
-        self.doi_changed.emit()
+        self.sd_changed.emit()
 
     def on_move_max_sd_request(self, direction: CardinalDirection, value:int):
         self._sd.max_point.move(direction, value)
         self._sd.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
-        self.doi_changed.emit()
+        self.sd_changed.emit()
 
     def on_set_min_sd_request(self, direction: CardinalDirection, value: int):
         self._sd.min_point.move_to(direction, value)
         self._sd.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
-        self.doi_changed.emit()
+        self.sd_changed.emit()
 
     def on_set_max_sd_request(self, direction: CardinalDirection, value: int):
         self._sd.max_point.move_to(direction, value)
         self._sd.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
 
-        self.doi_changed.emit()
+        self.sd_changed.emit()
 
     def on_switch_sd_show_request(self):
         self._sd_show = not self._sd_show
-        self.doi_changed.emit()
+        self.sd_changed.emit()
+
+    def on_add_grid_divisions_request(self, direction: CardinalDirection, value: int):
+        pass    
+
+    def on_set_grid_divisions_request(self, direction: CardinalDirection, value: int):
+        pass
+
+    def on_switch_grid_show_request(self):
+        self._grid_show = not self._grid_show
+        self.sd_changed.emit()
 
 
 class CTidyStudio(QMainWindow):
@@ -424,7 +440,7 @@ class CTidyStudio(QMainWindow):
         return frame
 
     def _create_sampling_domain_control(self, direction: CardinalDirection, parent: QObject) -> QLayout:
-        signal = self.app_state.doi_changed
+        signal = self.app_state.sd_changed
 
         layout = QVBoxLayout()
         layout.setSpacing(2)
@@ -478,8 +494,44 @@ class CTidyStudio(QMainWindow):
         return layout
 
     def _create_grid_divisions_control(self, parent: QObject) -> QLayout:
-        layout = QHBoxLayout()
+        signal = self.app_state.sd_changed
 
+        layout = QHBoxLayout()
+        layout.setSpacing(5)
+
+        btn = self._create_show_button(
+            f"grid",
+            self.app_state.on_switch_grid_show_request,
+            signal,
+            GRID_COLOR,
+            lambda: self.app_state.grid_show
+            )
+
+        layout.addWidget(btn, 1)
+        
+        x_binding = IncrementControlBinding(
+            "small",
+            partial(self.app_state.on_add_grid_divisions_request, CardinalDirection.X),
+            partial(self.app_state.on_set_grid_divisions_request, CardinalDirection.Y),
+            signal,
+            lambda: self.app_state.sd.grid_divisions[0]
+        )
+
+        x_increment_button = self._create_increment_control(parent, x_binding)
+
+        layout.addWidget(x_increment_button, 2)
+        
+        z_binding = IncrementControlBinding(
+            "small",
+            partial(self.app_state.on_add_grid_divisions_request, CardinalDirection.X),
+            partial(self.app_state.on_set_grid_divisions_request, CardinalDirection.Y),
+            signal,
+            lambda: self.app_state.sd.grid_divisions[0]
+        )
+
+        z_increment_button = self._create_increment_control(parent, z_binding)
+
+        layout.addWidget(z_increment_button, 2)
 
         return layout
 
@@ -492,7 +544,7 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(5)
 
-        btn = self._create_show_button("DOI", self.app_state.on_switch_sd_show_request, self.app_state.doi_changed, DOI_COLOR, lambda: self.app_state.sd_show)
+        btn = self._create_show_button("DOI", self.app_state.on_switch_sd_show_request, self.app_state.sd_changed, SD_COLOR, lambda: self.app_state.sd_show)
 
         layout.addWidget(btn)
 
@@ -578,7 +630,7 @@ class SliceView(QGraphicsView):
         self.app_state.slice_pos_changed.connect(self._update_view)
         self.app_state.slice_pos_changed.connect(self._update_slice_lines)
 
-        self.app_state.doi_changed.connect(self._update_doi_outline)
+        self.app_state.sd_changed.connect(self._update_doi_outline)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -817,7 +869,7 @@ class SliceView(QGraphicsView):
         max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.max_point))
 
         self._rectangle_doi_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
-        self._rectangle_doi_outline.setPen(QPen(DOI_COLOR, 1))
+        self._rectangle_doi_outline.setPen(QPen(SD_COLOR, 1))
         self._update_outlines()
 
         self._rectangle_doi_outline.setVisible(self.app_state.sd_show)
