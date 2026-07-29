@@ -14,6 +14,7 @@ from PySide6.QtCore import (
     QPoint,
     QPointF,
     QRectF,
+    QLineF,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -55,7 +56,8 @@ from ctidystudio.data_handling import (
     Scan,
     Point,
     Domain,
-    SamplingDomain
+    SamplingDomain,
+    SamplingType,
 )
 
 
@@ -182,6 +184,11 @@ class AppState(QObject):
 
     def on_switch_sd_show_request(self):
         self._sd_show = not self._sd_show
+        self.sd_changed.emit()
+
+    def change_sd_type_request(self, type: SamplingType):
+        self.sd.type = type
+
         self.sd_changed.emit()
 
     def on_add_grid_divisions_request(self, direction: CardinalDirection, value: int):
@@ -343,7 +350,8 @@ class CTidyStudio(QMainWindow):
 
         return control
 
-    def _create_show_button(self, text: str, action: Callable, update_signal: Signal, Color: QColor, is_shown: Callable[[], bool]):
+    @staticmethod
+    def _create_show_button(text: str, action: Callable, update_signal: Signal, Color: QColor, is_shown: Callable[[], bool]) -> QPushButton:
         btn = QPushButton()
         btn.clicked.connect(action)
         btn.setFixedWidth(95)
@@ -500,8 +508,72 @@ class CTidyStudio(QMainWindow):
     def _create_grid_divisions_control(self, parent: QObject) -> QLayout:
         signal = self.app_state.sd_changed
 
-        layout = QHBoxLayout()
+        layout = QVBoxLayout()
         layout.setSpacing(5)
+
+        type_layout = QHBoxLayout()
+        layout.setSpacing(5)
+        layout.addLayout(type_layout)
+
+        def _create_type_button(type: SamplingType, update_signal = Signal) -> QPushButton:
+            btn = QPushButton()
+            btn.clicked.connect(partial(self.app_state.change_sd_type_request, type))
+            btn.setFocusPolicy(Qt.NoFocus)
+            btn.setText(type.value)
+
+            def update_btn() -> None:
+                if self.app_state.sd.type == type:
+                    btn.setEnabled(False)
+                    btn.setCursor(Qt.ArrowCursor)
+                    btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #4a6fa5;
+                            color: white;
+                            border: 1px solid #666;
+                            border-radius: 6px;
+                            padding: 6px 10px;
+                            font-size: 12px;
+                        }
+                    """)
+                
+                else:
+                    btn.setEnabled(True)
+                    btn.setCursor(Qt.PointingHandCursor)
+                    btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #3a3a3a;
+                            color: white;
+                            border: 1px solid #666;
+                            border-radius: 6px;
+                            padding: 6px 10px;
+                            font-size: 12px;
+                        }
+                        QPushButton:hover {
+                            background-color: #34527a;
+                            border: 1px solid #7aa2d6;
+                        }
+                        QPushButton:pressed {
+                            background-color: #4a6fa5;
+                        }
+                    """)
+            
+            update_signal.connect(update_btn)
+
+            return btn
+
+        label = QLabel(f"Type")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setFixedWidth(95)
+
+        type_layout.addWidget(label, 1)
+        type_layout.addWidget(_create_type_button(SamplingType.FULL, signal), 1)
+        type_layout.addWidget(_create_type_button(SamplingType.UNIDIR, signal), 1)
+        type_layout.addWidget(_create_type_button(SamplingType.UNIDIR_AUTO, signal), 1)
+        type_layout.addWidget(_create_type_button(SamplingType.BIDIR, signal), 1)
+        
+        division_layout = QHBoxLayout()
+        division_layout.setSpacing(5)
+        layout.addLayout(division_layout)
 
         btn = self._create_show_button(
             f"grid",
@@ -511,31 +583,21 @@ class CTidyStudio(QMainWindow):
             lambda: self.app_state.grid_show
             )
 
-        layout.addWidget(btn, 1)
-        
-        x_binding = IncrementControlBinding(
-            "small",
-            partial(self.app_state.on_add_grid_divisions_request, CardinalDirection.X),
-            partial(self.app_state.on_set_grid_divisions_request, CardinalDirection.X),
-            signal,
-            lambda: self.app_state.sd.grid_divisions[CardinalDirection.X.dir]
-        )
+        division_layout.addWidget(btn, 1)
 
-        x_increment_button = self._create_increment_control(parent, x_binding)
+        for direction in [CardinalDirection.X, CardinalDirection.Y, CardinalDirection.Z]:
+            print(direction.dir)
+            binding = IncrementControlBinding(
+                "small",
+                partial(self.app_state.on_add_grid_divisions_request, direction),
+                partial(self.app_state.on_set_grid_divisions_request, direction),
+                signal,
+                lambda direction = direction: self.app_state.sd.grid_divisions[direction.dir]
+            )
 
-        layout.addWidget(x_increment_button, 2)
-        
-        z_binding = IncrementControlBinding(
-            "small",
-            partial(self.app_state.on_add_grid_divisions_request, CardinalDirection.Z),
-            partial(self.app_state.on_set_grid_divisions_request, CardinalDirection.Z),
-            signal,
-            lambda: self.app_state.sd.grid_divisions[CardinalDirection.Z.dir]
-        )
+            increment_button = self._create_increment_control(parent, binding)
 
-        z_increment_button = self._create_increment_control(parent, z_binding)
-
-        layout.addWidget(z_increment_button, 2)
+            division_layout.addWidget(increment_button, 1.3333)
 
         return layout
 
@@ -624,17 +686,21 @@ class SliceView(QGraphicsView):
 
         self._rectangle_doi_outline = QGraphicsRectItem(parent = self._pixmap_item)
 
+        self._update_grid_lines = self._make_grid_updater(self._pixmap_item)
+
     def _build_conections(self):
         self.rotation_request.connect(self.app_state.on_rotation_request)
 
         self.app_state.view_changed.connect(self._update_view)
         self.app_state.view_changed.connect(self._update_slice_lines)
         self.app_state.view_changed.connect(self._update_doi_outline)
+        self.app_state.view_changed.connect(self._update_grid_lines)
 
         self.app_state.slice_pos_changed.connect(self._update_view)
         self.app_state.slice_pos_changed.connect(self._update_slice_lines)
 
         self.app_state.sd_changed.connect(self._update_doi_outline)
+        self.app_state.sd_changed.connect(self._update_grid_lines)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -841,9 +907,9 @@ class SliceView(QGraphicsView):
             self.scale(fit_scale, fit_scale)
         
         self._update_view_center()
-        self._update_outlines()
+        self._update_line_thickness()
 
-    def _update_slice_lines(self):
+    def _update_slice_lines(self) -> None:
         view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state.scan_rotation_in_view_ref.inv())
 
         slice_pos_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.slice_pos))
@@ -855,28 +921,53 @@ class SliceView(QGraphicsView):
         self._vertical_slice_line.setLine(slice_pos_in_pixmap_coord.x(), 0, slice_pos_in_pixmap_coord.x(), self._pixmap_item.boundingRect().height())
         self._vertical_slice_line.setPen(QPen(view_orientation_in_view_coord.right.associated_color, 1))
         self._vertical_slice_line.setZValue(10)
-        self._update_outlines()
+        self._update_line_thickness()
 
         self._horizontal_slice_line.setVisible(self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.up.dir])
         self._vertical_slice_line.setVisible(self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.right.dir])
 
-    def _update_outlines(self):
+    def _update_line_thickness(self) -> None:
         min_viewport_dimension = min(self.viewport().height(), self.viewport().width()) / self.transform().m11()
         line_thickness = min_viewport_dimension * self.SLICE_LINE_RATIO
 
-        self._horizontal_slice_line.setPen(QPen(self._horizontal_slice_line.pen().color(), line_thickness))
-        self._vertical_slice_line.setPen(QPen(self._vertical_slice_line.pen().color(), line_thickness))
-        self._rectangle_doi_outline.setPen(QPen(self._rectangle_doi_outline.pen().color(), line_thickness))
+        for item in self._pixmap_item.childItems():
+            if isinstance(item, (QGraphicsLineItem, QGraphicsRectItem)):
+                item.setPen(QPen(item.pen().color(), line_thickness))
 
-    def _update_doi_outline(self):
+    def _update_doi_outline(self) -> None:
         min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.min_point))
         max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.max_point))
 
         self._rectangle_doi_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
         self._rectangle_doi_outline.setPen(QPen(SD_COLOR, 1))
-        self._update_outlines()
+        self._update_line_thickness()
 
         self._rectangle_doi_outline.setVisible(self.app_state.sd_show)
+
+    def _make_grid_updater(self, parent: QGraphicsPixmapItem) -> Callable:
+        grid_lines: list[QGraphicsLineItem] = []
+
+        def update_grid_lines() -> None:
+            for line in grid_lines:
+                if line is not None:
+                    self.scene.removeItem(line)
+
+            grid_lines.clear()
+
+            if self.app_state.grid_show:
+                for start, end in self.app_state.sd.grid_lines_by_extremities():
+                    start_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(start))
+                    end_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(end))
+
+                    line = QGraphicsLineItem(QLineF(start_in_pixmap_coord, end_in_pixmap_coord), parent)
+                    line.setPen(QPen(GRID_COLOR, 1))
+                    line.setZValue(8)
+
+                    grid_lines.append(line)
+
+                self._update_line_thickness()
+
+        return update_grid_lines
 
     def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:
         btn = QPushButton(text, self)

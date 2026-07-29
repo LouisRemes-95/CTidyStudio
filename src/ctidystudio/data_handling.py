@@ -2,7 +2,6 @@ from pathlib import Path
 from dataclasses import dataclass, field, InitVar
 from enum import Enum
 from collections import deque
-from typing import Literal
 
 from scipy.spatial.transform import Rotation
 import numpy as np
@@ -281,10 +280,16 @@ class Domain:
     min_point: Point
     max_point: Point
 
+class SamplingType(str, Enum):
+    FULL = "Full"
+    UNIDIR = "Uni"
+    UNIDIR_AUTO = "Uni auto"
+    BIDIR = "Bi"
+
 @dataclass
 class SamplingDomain(Domain):
     # UnidirAuto, computes the voxel depth equal to the max X or Y dimension
-    type: Literal["Full", "Unidir", "UnidirAuto", "Bidir"] = "Full"
+    type: SamplingType = SamplingType.FULL
     grid_divisions: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
     # doi_size = number divisions making up the doi, if Unidir doi_size[1] = Z voxel depth
     doi_size: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
@@ -299,3 +304,21 @@ class SamplingDomain(Domain):
         self.grid_divisions[direction.dir] = value
 
         np.maximum(self.grid_divisions, 0, out=self.grid_divisions)
+
+    def grid_lines_by_extremities(self) -> list[tuple[Point, Point]]:
+        x_linespacing, y_linespacing, z_linespacing = (np.linspace(min_coord, max_coord, divisions)
+            for min_coord, max_coord, divisions in zip(self.min_point.coord, self.max_point.coord, self.grid_divisions + 2)
+        )
+
+        if type != SamplingType.BIDIR:
+            x_coords, y_coords = np.meshgrid(x_linespacing, y_linespacing)
+
+            min_points = [Point(np.array([x, y, self.min_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
+            max_points = [Point(np.array([x, y, self.max_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
+
+            return zip(min_points, max_points)
+            
+        else:
+            pass
+
+
