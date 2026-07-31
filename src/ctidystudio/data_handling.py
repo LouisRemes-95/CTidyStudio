@@ -14,18 +14,21 @@ from PySide6.QtGui import (
 class Point:
     def __init__(self, coord: np.ndarray):
         if coord.shape != (3,):
-            raise ValueError("The coord give to a point should be a (3,) np.ndarray")
-        
+            raise ValueError("The coord given to a point should be a (3,) np.ndarray")
+
+        self._set_coord(coord)
+
+    def _set_coord(self, coord: np.ndarray) -> None:
         self._coord = coord.copy()
 
     @property
-    def coord(self) -> np.ndarray[float]:
+    def coord(self) -> np.ndarray:
         return self._coord
-    
+
     @property
-    def int_coord(self) -> np.ndarray[int]:
+    def int_coord(self) -> np.ndarray:
         return np.rint(self.coord).astype(int)
-    
+
     def rotate_about(self, rotation: Rotation, point: "Point | None" = None) -> "Point":
         if point is None:
             point = Point(np.zeros(3))
@@ -33,21 +36,33 @@ class Point:
         return Point(rotation.apply(self.coord) + np.abs(rotation.apply(point.coord)) - rotation.apply(point.coord))
 
     def rotate_about_inplace(self, rotation: Rotation, point: "Point | None" = None) -> None:
-        self._coord = self.rotate_about(rotation, point).coord
-    
+        self._set_coord(self.rotate_about(rotation, point).coord)
+
     def move(self, direction: "CardinalDirection", value: int) -> None:
         value = value if direction.vec[direction.dir] > 0 else -value
 
-        self._coord[direction.dir] += value
-    
+        coord = self.coord.copy()
+        coord[direction.dir] += value
+        self._set_coord(coord)
+
     def move_to(self, direction: "CardinalDirection", value: int) -> None:
         value = value if direction.vec[direction.dir] > 0 else -value
 
-        self._coord[direction.dir] = value
+        coord = self.coord.copy()
+        coord[direction.dir] = value
+        self._set_coord(coord)
 
-    def move_back_in_bounds(self, direction: "CardinalDirection", lower: float, upper: float):
-        self._coord[direction.dir] = max(self._coord[direction.dir], lower)
-        self._coord[direction.dir] = min(self._coord[direction.dir], upper)
+    def move_back_in_bounds(self, direction: "CardinalDirection", lower: float, upper: float) -> None:
+        coord = self.coord.copy()
+        coord[direction.dir] = max(coord[direction.dir], lower)
+        coord[direction.dir] = min(coord[direction.dir], upper)
+        self._set_coord(coord)
+
+
+class IntPoint(Point):
+    def _set_coord(self, coord: np.ndarray) -> None:
+        self._coord = np.rint(coord).astype(int)
+
 
 class CardinalDirection(Enum):
     X  = (1, 0, 0)
@@ -280,8 +295,8 @@ class Scan:
 
 @dataclass
 class Domain:
-    min_point: Point
-    max_point: Point
+    min_point: IntPoint
+    max_point: IntPoint
 
     def rotate_about(self, rotation: Rotation, point: "Point | None" = None) -> "Domain":
         return Domain(self.min_point.rotate_about(rotation, point), self.max_point.rotate_about(rotation, point))
@@ -315,7 +330,7 @@ class SamplingDomain(Domain):
 
         np.maximum(self.grid_divisions, 0, out=self.grid_divisions)
 
-    def grid_lines_by_extremities(self) -> list[tuple[Point, Point]]:
+    def grid_lines_by_extremities(self) -> list[tuple[IntPoint, IntPoint]]:
         x_linespacing, y_linespacing, z_linespacing = (np.linspace(min_coord, max_coord, divisions)
             for min_coord, max_coord, divisions in zip(self.min_point.coord, self.max_point.coord, self.grid_divisions + 2)
         )
@@ -323,8 +338,8 @@ class SamplingDomain(Domain):
         if type != SamplingType.BIDIR:
             x_coords, y_coords = np.meshgrid(x_linespacing, y_linespacing)
 
-            min_points = [Point(np.array([x, y, self.min_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
-            max_points = [Point(np.array([x, y, self.max_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
+            min_points = [IntPoint(np.array([x, y, self.min_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
+            max_points = [IntPoint(np.array([x, y, self.max_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
 
             return zip(min_points, max_points)
             
