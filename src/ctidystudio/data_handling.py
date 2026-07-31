@@ -13,10 +13,10 @@ from PySide6.QtGui import (
 
 class Point:
     def __init__(self, coord: np.ndarray):
-        if not coord.shape == (3,):
+        if coord.shape != (3,):
             raise ValueError("The coord give to a point should be a (3,) np.ndarray")
         
-        self._coord = coord
+        self._coord = coord.copy()
 
     @property
     def coord(self) -> np.ndarray[float]:
@@ -26,11 +26,14 @@ class Point:
     def int_coord(self) -> np.ndarray[int]:
         return np.rint(self.coord).astype(int)
     
-    def rotate(self, rotation: Rotation) -> "Point":
-        return Point(rotation.apply(self.coord))
-    
-    def rotate_with_scan_center(self, rotation: Rotation, scan_center: "Point") -> "Point":
-        return Point(rotation.apply(self.coord) + np.abs(rotation.apply(scan_center.coord)) - rotation.apply(scan_center.coord))
+    def rotate_about(self, rotation: Rotation, point: "Point | None" = None) -> "Point":
+        if point is None:
+            point = Point(np.zeros(3))
+
+        return Point(rotation.apply(self.coord) + np.abs(rotation.apply(point.coord)) - rotation.apply(point.coord))
+
+    def rotate_about_inplace(self, rotation: Rotation, point: "Point | None" = None) -> None:
+        self._coord = self.rotate_about(rotation, point).coord
     
     def move(self, direction: "CardinalDirection", value: int) -> None:
         value = value if direction.vec[direction.dir] > 0 else -value
@@ -279,6 +282,13 @@ class Scan:
 class Domain:
     min_point: Point
     max_point: Point
+
+    def rotate_about(self, rotation: Rotation, point: "Point | None" = None) -> "Domain":
+        return Domain(self.min_point.rotate_about(rotation, point), self.max_point.rotate_about(rotation, point))
+
+    def rotate_about_inplace(self, rotation: Rotation, point: "Point | None" = None) -> None:
+        self.min_point.rotate_about_inplace(rotation, point)
+        self.max_point.rotate_about_inplace(rotation, point)
 
 class SamplingType(str, Enum):
     FULL = "Full"

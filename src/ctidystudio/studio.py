@@ -98,7 +98,8 @@ class AppState(QObject):
     def __init__(self, scan: Scan) -> None:
         super().__init__()
         self._scan = scan
-        self._scan_rotation_in_view_ref = Rotation.identity()
+        self._applied_scan_rotation_in_view_ref = Rotation.identity()
+        self._current_scan_rotation_in_view_ref = Rotation.identity()
         self._slice_pos = Point(np.array([0, 0, 0]))
         self._slice_pos_show_dir = [False, False, False]
         self._sd = SamplingDomain(Point(np.array([0, 0, 0])), Point(np.array(scan.shape) - 1))
@@ -110,8 +111,12 @@ class AppState(QObject):
         return self._scan
 
     @property
-    def scan_rotation_in_view_ref(self):
-        return self._scan_rotation_in_view_ref
+    def applied_scan_rotation_in_view_ref(self):
+        return self._applied_scan_rotation_in_view_ref
+    
+    @property
+    def current_scan_rotation_in_view_ref(self):
+        return self._current_scan_rotation_in_view_ref
     
     @property
     def slice_pos(self):
@@ -139,8 +144,20 @@ class AppState(QObject):
         self.sd_changed.emit()
 
     def on_rotation_request(self, rotation: Rotation) -> None:
-        self._scan_rotation_in_view_ref = rotation * self._scan_rotation_in_view_ref
+        self._current_scan_rotation_in_view_ref = rotation * self._current_scan_rotation_in_view_ref
         self.view_changed.emit()
+
+    def on_apply_rotation_request(self) -> None:
+        self.slice_pos.rotate_about_inplace(self.current_scan_rotation_in_view_ref, self.scan.center)
+
+        self._sd.rotate_about_inplace(self.current_scan_rotation_in_view_ref, self.scan.center)
+
+        self._scan = Scan(self.scan.voxel_size, self.scan.rotate_data(self.current_scan_rotation_in_view_ref))
+
+        self._applied_scan_rotation_in_view_ref = self.current_scan_rotation_in_view_ref * self.applied_scan_rotation_in_view_ref
+        self._current_scan_rotation_in_view_ref = Rotation.identity()
+
+        self.fire_all_signals()
     
     def on_move_slice_pos_request(self, direction: CardinalDirection, value: int):
         self._slice_pos.move(direction, value)
@@ -205,7 +222,6 @@ class AppState(QObject):
         self._grid_show = not self._grid_show
         self.sd_changed.emit()
 
-
 class CTidyStudio(QMainWindow):
     def __init__(self, scan: Scan) -> None:
         super().__init__()
@@ -247,7 +263,7 @@ class CTidyStudio(QMainWindow):
 
     def _build_scroll_area(self) -> QScrollArea:
         right_container = QScrollArea()
-        right_container.setFixedWidth(450)
+        right_container.setFixedWidth(470)
         right_container.setWidgetResizable(True)
         right_container.setFrameShape(QFrame.NoFrame)
         right_container.setObjectName("rightScrollArea")
@@ -304,12 +320,42 @@ class CTidyStudio(QMainWindow):
         right_layout.setContentsMargins(10, 10, 10, 10)
         right_layout.setSpacing(10)
 
+        right_layout.addWidget(self._create_apply_rotation_button(scroll_content))
         right_layout.addWidget(self._create_slice_pos_controls(scroll_content))
         right_layout.addWidget(self._create_sampling_domain_controls_panel(scroll_content))
         
         right_container.setWidget(scroll_content)
 
         return right_container
+
+    def _create_apply_rotation_button(self, parent: QObject) -> QPushButton:
+        btn = QPushButton()
+        btn.clicked.connect(self.app_state.on_apply_rotation_request)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setFocusPolicy(Qt.NoFocus)
+        btn.setFixedHeight(32)
+
+        btn.setText("Apply rotation")
+
+        btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3a3a3a;
+                color: white;
+                border: 1px solid #666;
+                border-radius: 16px;
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #4a6fa5;
+                border: 1px solid #7aa2d6;
+            }
+            QPushButton:pressed {
+                background-color: #34527a;
+            }
+        """)
+
+        return btn
 
     @staticmethod
     def _create_base_frame(parent: QObject) -> tuple[QFrame, QLayout]:
@@ -586,7 +632,6 @@ class CTidyStudio(QMainWindow):
         division_layout.addWidget(btn, 1)
 
         for direction in [CardinalDirection.X, CardinalDirection.Y, CardinalDirection.Z]:
-            print(direction.dir)
             binding = IncrementControlBinding(
                 "small",
                 partial(self.app_state.on_add_grid_divisions_request, direction),
@@ -644,7 +689,7 @@ class SliceView(QGraphicsView):
 
     @property
     def rotation(self):
-        return self._view_orientation.rotate(self.app_state.scan_rotation_in_view_ref.inv()).rotation.inv()
+        return self._view_orientation.rotate(self.app_state.current_scan_rotation_in_view_ref.inv()).rotation.inv()
 
     def __init__(self, app_state: AppState, view_orientation: Orientation) -> None:
         super().__init__()
@@ -684,7 +729,7 @@ class SliceView(QGraphicsView):
         self._horizontal_slice_line = QGraphicsLineItem(parent = self._pixmap_item)
         self._vertical_slice_line = QGraphicsLineItem(parent = self._pixmap_item)
 
-        self._rectangle_doi_outline = QGraphicsRectItem(parent = self._pixmap_item)
+        self._rectangle_sd_outline = QGraphicsRectItem(parent = self._pixmap_item)
 
         self._update_grid_lines = self._make_grid_updater(self._pixmap_item)
 
@@ -693,20 +738,20 @@ class SliceView(QGraphicsView):
 
         self.app_state.view_changed.connect(self._update_view)
         self.app_state.view_changed.connect(self._update_slice_lines)
-        self.app_state.view_changed.connect(self._update_doi_outline)
+        self.app_state.view_changed.connect(self._update_sd_outline)
         self.app_state.view_changed.connect(self._update_grid_lines)
 
         self.app_state.slice_pos_changed.connect(self._update_view)
         self.app_state.slice_pos_changed.connect(self._update_slice_lines)
 
-        self.app_state.sd_changed.connect(self._update_doi_outline)
+        self.app_state.sd_changed.connect(self._update_sd_outline)
         self.app_state.sd_changed.connect(self._update_grid_lines)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
         
         self._update_slice_lines()
-        self._update_doi_outline()
+        self._update_sd_outline()
         self._fit_view(False)
 
     def resizeEvent(self, event) -> None:
@@ -773,7 +818,7 @@ class SliceView(QGraphicsView):
         painter.drawRect(x, y, bar_width, bar_height)
 
         # Axis
-        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state.scan_rotation_in_view_ref.inv())
+        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state.current_scan_rotation_in_view_ref.inv())
 
         # Right axis
         horizontal_arrow = QPolygonF([
@@ -883,10 +928,10 @@ class SliceView(QGraphicsView):
         self.centerOn(view_center_in_pixmap_coord)
 
     def _global_to_view_coord(self, point: Point) -> Point:
-        return point.rotate_with_scan_center(self.rotation, self.app_state.scan.center)
+        return point.rotate_about(self.rotation, self.app_state.scan.center)
     
     def _view_to_global_coord(self, point: Point) -> Point:
-        return point.rotate_with_scan_center(self.rotation.inv(), self._global_to_view_coord(self.app_state.scan.center))
+        return point.rotate_about(self.rotation.inv(), self._global_to_view_coord(self.app_state.scan.center))
     
     def _view_to_pixmap_coord(self, point: Point) -> QPointF:
         return QPointF(point.coord[0] + .5, self._pixmap_item.boundingRect().height() - .5 - point.coord[1])
@@ -910,17 +955,17 @@ class SliceView(QGraphicsView):
         self._update_line_thickness()
 
     def _update_slice_lines(self) -> None:
-        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state.scan_rotation_in_view_ref.inv())
+        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state.current_scan_rotation_in_view_ref.inv())
 
         slice_pos_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.slice_pos))
         
         self._horizontal_slice_line.setLine(0, slice_pos_in_pixmap_coord.y(), self._pixmap_item.boundingRect().width(), slice_pos_in_pixmap_coord.y())
         self._horizontal_slice_line.setPen(QPen(view_orientation_in_view_coord.up.associated_color, 1))
-        self._horizontal_slice_line.setZValue(10)
+        self._horizontal_slice_line.setZValue(11)
         
         self._vertical_slice_line.setLine(slice_pos_in_pixmap_coord.x(), 0, slice_pos_in_pixmap_coord.x(), self._pixmap_item.boundingRect().height())
         self._vertical_slice_line.setPen(QPen(view_orientation_in_view_coord.right.associated_color, 1))
-        self._vertical_slice_line.setZValue(10)
+        self._vertical_slice_line.setZValue(11)
         self._update_line_thickness()
 
         self._horizontal_slice_line.setVisible(self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.up.dir])
@@ -934,15 +979,16 @@ class SliceView(QGraphicsView):
             if isinstance(item, (QGraphicsLineItem, QGraphicsRectItem)):
                 item.setPen(QPen(item.pen().color(), line_thickness))
 
-    def _update_doi_outline(self) -> None:
+    def _update_sd_outline(self) -> None:
         min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.min_point))
         max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.max_point))
 
-        self._rectangle_doi_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
-        self._rectangle_doi_outline.setPen(QPen(SD_COLOR, 1))
+        self._rectangle_sd_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
+        self._rectangle_sd_outline.setPen(QPen(SD_COLOR, 1))
         self._update_line_thickness()
 
-        self._rectangle_doi_outline.setVisible(self.app_state.sd_show)
+        self._rectangle_sd_outline.setZValue(10)
+        self._rectangle_sd_outline.setVisible(self.app_state.sd_show)
 
     def _make_grid_updater(self, parent: QGraphicsPixmapItem) -> Callable:
         grid_lines: list[QGraphicsLineItem] = []
