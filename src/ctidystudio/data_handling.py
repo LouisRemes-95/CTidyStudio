@@ -2,7 +2,7 @@ from pathlib import Path
 from dataclasses import dataclass, field, InitVar
 from enum import Enum
 from collections import deque
-from typing import Any
+from typing import Any, TypeAlias
 
 from scipy.spatial.transform import Rotation
 import numpy as np
@@ -65,6 +65,95 @@ class IntPoint(Point):
         self._coord = np.rint(coord).astype(int)
 
 
+RotationMatrixKey: TypeAlias = tuple[
+    tuple[int, int, int],
+    tuple[int, int, int],
+    tuple[int, int, int],
+]
+
+
+@dataclass(frozen=True)
+class SnappedRotation:
+    rotation: Rotation | RotationMatrixKey
+
+    def __post_init__(self) -> None:
+        if isinstance(self.rotation, Rotation):
+            rotation = self.rotation
+        else:
+            rotation = self._valide_rotation_from_key(self.rotation)
+        
+        object.__setattr__(self, "rotation", self._snap_rotation(rotation))
+
+    @staticmethod
+    def _valide_rotation_from_key(key: RotationMatrixKey) -> Rotation:
+        matrix = np.asarray(key, dtype=int)
+
+        if matrix.shape != (3, 3):
+            raise ValueError(
+                f"Rotation key must have shape (3, 3), got {matrix.shape}"
+            )
+
+        if not np.all(np.isin(matrix, (-1, 0, 1))):
+            raise ValueError(
+                "Rotation key entries must be -1, 0, or 1"
+            )
+
+        if not np.array_equal(
+            matrix.T @ matrix,
+            np.eye(3, dtype=int),
+        ):
+            raise ValueError(
+                "Rotation key must be orthogonal"
+            )
+
+        if round(float(np.linalg.det(matrix))) != 1:
+            raise ValueError(
+                "Rotation key must have determinant +1"
+            )
+
+        return Rotation.from_matrix(matrix)
+
+    @staticmethod
+    def _snap_rotation(rotation: Rotation) -> Rotation:
+        CARDINAL_ROTATIONS = Rotation.create_group("O")
+
+        relative_rotations = CARDINAL_ROTATIONS.inv() * rotation
+        angular_distances = relative_rotations.magnitude()
+
+        closest_index = int(np.argmin(angular_distances))
+        return CARDINAL_ROTATIONS[closest_index]
+
+    def key(self) -> RotationMatrixKey:
+        return tuple(tuple(row) for row in np.rint(self.rotation.as_matrix()).astype(int))
+
+    def __hash__(self) -> int:
+        return hash(self.key())
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, SnappedRotation) and self.key() == other.key()
+
+    def __mul__(self, other: object) -> "SnappedRotation":
+        if isinstance(other, SnappedRotation):
+            combined = self.rotation * other.rotation
+            return SnappedRotation(combined)
+
+        if isinstance(other, Rotation):
+            combined = self.rotation * other
+            return SnappedRotation(combined)
+
+        return NotImplemented
+
+    @classmethod
+    def identity(cls) -> "SnappedRotation":
+        return cls(Rotation.identity())
+
+    def inv(self) -> "SnappedRotation":
+        return SnappedRotation(self.rotation.inv())
+
+    def as_quat(self):
+        return self.rotation.as_quat()
+
+
 class CardinalDirection(Enum):
     X  = (1, 0, 0)
     Y  = (0, 1, 0)
@@ -89,14 +178,14 @@ class CardinalDirection(Enum):
         return self._direction_index
     
     @property
-    def rotation_around_direction(self) -> Rotation:
+    def snapped_rotation_around_direction(self) -> SnappedRotation:
         rotations = {
-            CardinalDirection.X: Rotation.from_euler("x", 90, degrees = True),
-            CardinalDirection.Y: Rotation.from_euler("y", 90, degrees = True),
-            CardinalDirection.Z: Rotation.from_euler("z", 90, degrees = True),
-            CardinalDirection.X_: Rotation.from_euler("x", -90, degrees = True),
-            CardinalDirection.Y_: Rotation.from_euler("y", -90, degrees = True),
-            CardinalDirection.Z_: Rotation.from_euler("z", -90, degrees = True),
+            CardinalDirection.X: SnappedRotation(Rotation.from_euler("x", 90, degrees = True)),
+            CardinalDirection.Y: SnappedRotation(Rotation.from_euler("y", 90, degrees = True)),
+            CardinalDirection.Z: SnappedRotation(Rotation.from_euler("z", 90, degrees = True)),
+            CardinalDirection.X_: SnappedRotation(Rotation.from_euler("x", -90, degrees = True)),
+            CardinalDirection.Y_: SnappedRotation(Rotation.from_euler("y", -90, degrees = True)),
+            CardinalDirection.Z_: SnappedRotation(Rotation.from_euler("z", -90, degrees = True)),
         }
         return rotations[self]
     
@@ -134,44 +223,21 @@ class CardinalDirection(Enum):
 
     def rotate(self, rotation: Rotation) -> "CardinalDirection":
         return CardinalDirection(tuple(np.rint(rotation.apply(self.vec)).astype(int)))
+    
 
+def _build_rotation_lookup() -> dict[SnappedRotation, list[CardinalDirection]]:
+    lookup: dict[SnappedRotation, list[CardinalDirection]] = {SnappedRotation(Rotation.identity()): []}
 
-@dataclass(frozen=True)
-class RotationKey:
-    rotation: Rotation
-
-    def _key(self) -> tuple[tuple[int, int, int], ...]:
-        matrix = self.rotation.as_matrix()
-        snapped = np.rint(matrix).astype(int)
-
-        if not np.allclose(matrix, snapped, atol=1e-8):
-            raise ValueError(
-                f"Rotation is not a cardinal 90-degree rotation:\n{matrix}"
-            )
-
-        return tuple(tuple(row) for row in snapped)
-
-    def __hash__(self) -> int:
-        return hash(self._key())
-
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, RotationKey) and self._key() == other._key()
-
-
-def _build_rotation_lookup() -> dict[RotationKey, list[CardinalDirection]]:
-    lookup: dict[RotationKey, list[CardinalDirection]] = {RotationKey(Rotation.identity()): []}
-
-    rotation_queue = deque([Rotation.identity()])
+    rotation_queue = deque([SnappedRotation.identity()])
 
     while len(lookup) < 24:
         rotation = rotation_queue.popleft()
 
         for direction in CardinalDirection:
-            new_rotation = direction.rotation_around_direction * rotation
-            new_key = RotationKey(new_rotation)
+            new_rotation = direction.snapped_rotation_around_direction * rotation
 
-            if new_key not in lookup:
-                lookup[new_key] = lookup[RotationKey(rotation)] + [direction]
+            if new_rotation not in lookup:
+                lookup[new_rotation] = lookup[rotation] + [direction]
                 rotation_queue.append(new_rotation)
 
     return lookup
@@ -185,7 +251,7 @@ class Orientation:
     forward: CardinalDirection
     up: CardinalDirection
     right: CardinalDirection = field(init=False)
-    rotation: Rotation = field(init=False)
+    rotation: SnappedRotation = field(init=False)
 
     def __post_init__(self) -> None:
         if np.dot(self.forward.vec, self.up.vec) != 0:
@@ -193,10 +259,10 @@ class Orientation:
         
         object.__setattr__(self, "right", CardinalDirection(tuple(np.rint(np.cross(self.forward.vec, self.up.vec)).astype(int))))
 
-        object.__setattr__(self, "rotation", Rotation.from_matrix(np.column_stack((self.right.vec, self.up.vec, -self.forward.vec))))
+        object.__setattr__(self, "rotation", SnappedRotation(Rotation.from_matrix(np.column_stack((self.right.vec, self.up.vec, -self.forward.vec)))))
 
-    def rotate(self, rotation: Rotation) -> "Orientation":
-        return Orientation(self.forward.rotate(rotation), self.up.rotate(rotation))
+    def rotate(self, snapped_rotation: SnappedRotation) -> "Orientation":
+        return Orientation(self.forward.rotate(snapped_rotation.rotation), self.up.rotate(snapped_rotation.rotation))
 
 
 @dataclass(frozen=True)
@@ -240,8 +306,8 @@ class Scan:
     def center(self) -> Point:
         return self._center
     
-    def rotate_data(self, rotation: Rotation) -> np.ndarray:
-        rotation_sequence = ROTATION_LOOKUP[RotationKey(rotation)]
+    def rotate_data(self, rotation: SnappedRotation) -> np.ndarray:
+        rotation_sequence = ROTATION_LOOKUP[rotation]
 
         rotated_data = self.data
         for direction in rotation_sequence:

@@ -61,6 +61,7 @@ from ctidystudio.data_handling import (
     Domain,
     SamplingDomain,
     SamplingType,
+    SnappedRotation,
 )
 
 
@@ -101,8 +102,8 @@ class AppState(QObject):
     def __init__(self, scan: Scan) -> None:
         super().__init__()
         self._scan = scan
-        self._applied_scan_rotation_in_view_ref = Rotation.identity()
-        self._current_scan_rotation_in_view_ref = Rotation.identity()
+        self._applied_scan_rotation_in_view_ref = SnappedRotation.identity()
+        self._current_scan_rotation_in_view_ref = SnappedRotation.identity()
         self._slice_pos = IntPoint(np.array([0, 0, 0]))
         self._slice_pos_show_dir = [False, False, False]
         self._sd = SamplingDomain(IntPoint(np.array([0, 0, 0])), IntPoint(np.array(scan.shape) - 1))
@@ -162,19 +163,19 @@ class AppState(QObject):
         self.slice_pos_changed.emit()
         self.sd_changed.emit()
 
-    def on_rotation_request(self, rotation: Rotation) -> None:
+    def on_rotation_request(self, rotation: SnappedRotation) -> None:
         self._current_scan_rotation_in_view_ref = rotation * self._current_scan_rotation_in_view_ref
         self.view_changed.emit()
 
     def on_apply_rotation_request(self) -> None:
-        self.slice_pos.rotate_about_inplace(self.current_scan_rotation_in_view_ref, self.scan.center)
+        self.slice_pos.rotate_about_inplace(self.current_scan_rotation_in_view_ref.rotation, self.scan.center)
 
-        self._sd.rotate_about_inplace(self.current_scan_rotation_in_view_ref, self.scan.center)
+        self._sd.rotate_about_inplace(self.current_scan_rotation_in_view_ref.rotation, self.scan.center)
 
         self._scan = Scan(self.scan.voxel_size, self.scan.rotate_data(self.current_scan_rotation_in_view_ref))
 
         self._applied_scan_rotation_in_view_ref = self.current_scan_rotation_in_view_ref * self.applied_scan_rotation_in_view_ref
-        self._current_scan_rotation_in_view_ref = Rotation.identity()
+        self._current_scan_rotation_in_view_ref = SnappedRotation.identity()
 
         self.fire_all_signals()
     
@@ -739,7 +740,7 @@ class SliceView(QGraphicsView):
     rotation_request = Signal(CardinalDirection)
 
     @property
-    def rotation(self):
+    def snapped_rotation(self):
         return self._view_orientation.rotate(self.app_state.current_scan_rotation_in_view_ref.inv()).rotation.inv()
 
     def __init__(self, app_state: AppState, view_orientation: Orientation) -> None:
@@ -942,7 +943,7 @@ class SliceView(QGraphicsView):
         painter.restore()
 
     def _update_view(self):
-        rotated_data = self.app_state.scan.rotate_data(self.rotation)
+        rotated_data = self.app_state.scan.rotate_data(self.snapped_rotation)
         rotated_slice_pos = self._global_to_view_coord(self.app_state.slice_pos).int_coord
 
         image = np.flipud(rotated_data[:,:,rotated_slice_pos[2]].T)
@@ -979,10 +980,10 @@ class SliceView(QGraphicsView):
         self.centerOn(view_center_in_pixmap_coord)
 
     def _global_to_view_coord(self, point: Point) -> Point:
-        return point.rotate_about(self.rotation, self.app_state.scan.center)
+        return point.rotate_about(self.snapped_rotation.rotation, self.app_state.scan.center)
     
     def _view_to_global_coord(self, point: Point) -> Point:
-        return point.rotate_about(self.rotation.inv(), self._global_to_view_coord(self.app_state.scan.center))
+        return point.rotate_about(self.snapped_rotation.rotation.inv(), self._global_to_view_coord(self.app_state.scan.center))
     
     def _view_to_pixmap_coord(self, point: Point) -> QPointF:
         return QPointF(point.coord[0] + .5, self._pixmap_item.boundingRect().height() - .5 - point.coord[1])
@@ -1106,7 +1107,7 @@ class SliceView(QGraphicsView):
         view_orientation = self._view_orientation
         direction = view_orientation.forward if clockwise else -view_orientation.forward
 
-        self.rotation_request.emit(direction.rotation_around_direction)
+        self.rotation_request.emit(direction.snapped_rotation_around_direction)
         pass
     
     def mousePressEvent(self, event) -> None:
