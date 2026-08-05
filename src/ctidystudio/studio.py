@@ -98,10 +98,9 @@ class AppState(QObject):
     slice_pos_changed = Signal()
     sd_changed = Signal()
 
-    def __init__(self, scan: Scan, output_dir: Path) -> None:
+    def __init__(self, scan: Scan) -> None:
         super().__init__()
         self._scan = scan
-        self._output_dir = output_dir
         self._applied_scan_rotation_in_view_ref = Rotation.identity()
         self._current_scan_rotation_in_view_ref = Rotation.identity()
         self._slice_pos = IntPoint(np.array([0, 0, 0]))
@@ -109,8 +108,6 @@ class AppState(QObject):
         self._sd = SamplingDomain(IntPoint(np.array([0, 0, 0])), IntPoint(np.array(scan.shape) - 1))
         self._sd_show = False
         self._grid_show = False
-
-        self._build_save_connecitons()
 
     @property
     def scan(self):
@@ -155,21 +152,11 @@ class AppState(QObject):
             "grid_show": self._grid_show,
         }
 
-    def _save(self) -> None:
-        path = self._output_dir / "app_state.json"
+    def save(self, dir: Path) -> None:
+        path = dir / "app_state.json"
         with path.open("w", encoding="utf-8") as file:
             json.dump(self._to_dict(), file, indent=4)
-
-    def _build_save_connecitons(self) -> None:
-        self._save_timer = QTimer(self)
-        self._save_timer.setSingleShot(True)
-        self._save_timer.setInterval(500)
-        self._save_timer.timeout.connect(self._save)
-
-        self.view_changed.connect(self._save_timer.start)
-        self.slice_pos_changed.connect(self._save_timer.start)
-        self.sd_changed.connect(self._save_timer.start)
-
+    
     def fire_all_signals(self):
         self.view_changed.emit()
         self.slice_pos_changed.emit()
@@ -255,18 +242,49 @@ class AppState(QObject):
         self.sd_changed.emit()
 
 
+class Mode(str, Enum):
+    RESET = "reset"
+    RESUME = "resume"
+    SILENT = "silent"
+
+
+@dataclass(frozen=True)
+class AppConfig:
+    input_dir: Path
+    output_dir: Path
+    mode: Mode
+    autosave_interval_ms: int = 500
+
+
 class CTidyStudio(QMainWindow):
-    def __init__(self, scan: Scan, output_dir: Path) -> None:
+    def __init__(self, scan: Scan, input_dir: Path, output_dir: Path, mode: "Mode") -> None:
         super().__init__()
 
-        self.app_state = AppState(scan, output_dir)
+        self._app_config = AppConfig(input_dir, output_dir, mode)
+
+        self._build_app_state(scan)
 
         self._build_slice_views()
         self._build_ui()
 
         self.app_state.fire_all_signals()
 
-    def _build_slice_views(self):
+    def _build_app_state(self, scan: Scan) -> None:
+        self.app_state = AppState(scan)
+
+        self._build_save_connections()
+
+    def _build_save_connections(self) -> None:
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(500)
+        self._save_timer.timeout.connect(partial(self.app_state.save, self._app_config.input_dir))
+
+        self.app_state.view_changed.connect(self._save_timer.start)
+        self.app_state.slice_pos_changed.connect(self._save_timer.start)
+        self.app_state.sd_changed.connect(self._save_timer.start)
+
+    def _build_slice_views(self) -> None:
 
         self.top_slice_view = SliceView(self.app_state, Orientation(CardinalDirection.Z_, CardinalDirection.Y))
         self.bot_slice_view = SliceView(self.app_state, Orientation(CardinalDirection.X, CardinalDirection.Y))
@@ -1305,12 +1323,6 @@ class SmallIncrementControl(QWidget):
         self._editable_display.setText(str(value))
 
 
-class Mode(str, Enum):
-    RESET = "reset"
-    RESUME = "resume"
-    SILENT = "silent"
-
-
 def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: float) -> int:
     with console.status("[cyan]Loading tif stack..."):
         scan = Scan.from_tif_stack(input_dir, voxel_size)
@@ -1330,7 +1342,7 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
     app = QApplication.instance() or QApplication(sys.argv)
         
     with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
-        window = CTidyStudio(scan, output_dir)
+        window = CTidyStudio(scan, input_dir, output_dir, mode)
         window.show()
         exit_code = app.exec()
 

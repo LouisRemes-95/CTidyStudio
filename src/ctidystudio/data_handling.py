@@ -353,16 +353,16 @@ class SamplingDomain(Domain):
         else:
             pass
 
-        def to_dict(self) -> dict[str, Any]:
-            data = super().to_dict()
+    def to_dict(self) -> dict[str, Any]:
+        data = super().to_dict()
 
-            data.update({
-                "type": self.type.value,
-                "grid_divisions": self.grid_divisions.tolist(),
-                "doi_size": self.doi_size.tolist(),
-                "seed": self.seed,
-            })
+        data.update({
+            "type": self.type.value,
+            "grid_divisions": self.grid_divisions.tolist(),
+            "doi_size": self.doi_size.tolist(),
+            "seed": self.seed,
+        })
 
-            return data
+        return data
 
 
