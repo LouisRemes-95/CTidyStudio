@@ -2,6 +2,7 @@ from pathlib import Path
 from dataclasses import dataclass, field, InitVar
 from enum import Enum
 from collections import deque
+from typing import Any
 
 from scipy.spatial.transform import Rotation
 import numpy as np
@@ -305,6 +306,12 @@ class Domain:
         self.min_point.rotate_about_inplace(rotation, point)
         self.max_point.rotate_about_inplace(rotation, point)
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "min_point": self.min_point.coord.tolist(),
+            "max_point": self.max_point.coord.tolist(),
+        }
+
 class SamplingType(str, Enum):
     FULL = "Full"
     UNIDIR = "Uni"
@@ -345,5 +352,17 @@ class SamplingDomain(Domain):
             
         else:
             pass
+
+        def to_dict(self) -> dict[str, Any]:
+            data = super().to_dict()
+
+            data.update({
+                "type": self.type.value,
+                "grid_divisions": self.grid_divisions.tolist(),
+                "doi_size": self.doi_size.tolist(),
+                "seed": self.seed,
+            })
+
+            return data
 
 

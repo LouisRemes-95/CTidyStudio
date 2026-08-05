@@ -1,0 +1,38 @@
+{
+    "applied_scan_rotation_in_view_ref": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+    ],
+    "current_scan_rotation_in_view_ref": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+    ],
+    "slice_pos": [
+        0,
+        0,
+        0
+    ],
+    "slice_pos_show_dir": [
+        false,
+        false,
+        false
+    ],
+    "sd": {
+        "min_point": [
+            0,
+            0,
+            0
+        ],
+        "max_point": [
+            879,
+            1259,
+            897
+        ]
+    },
+    "sd_show": false,
+    "grid_show": false
+}

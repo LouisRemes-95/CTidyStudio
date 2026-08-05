@@ -1,12 +1,13 @@
 import sys
 from pathlib import Path
 from enum import Enum
-from typing import Final, Callable, Literal
+from typing import Final, Callable, Literal, Any
 import numpy as np
 import math
 from dataclasses import dataclass
 from functools import partial
 
+import json
 from PySide6.QtCore import (
     QObject,
     Signal,
@@ -15,6 +16,7 @@ from PySide6.QtCore import (
     QPointF,
     QRectF,
     QLineF,
+    QTimer,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -96,9 +98,10 @@ class AppState(QObject):
     slice_pos_changed = Signal()
     sd_changed = Signal()
 
-    def __init__(self, scan: Scan) -> None:
+    def __init__(self, scan: Scan, output_dir: Path) -> None:
         super().__init__()
         self._scan = scan
+        self._output_dir = output_dir
         self._applied_scan_rotation_in_view_ref = Rotation.identity()
         self._current_scan_rotation_in_view_ref = Rotation.identity()
         self._slice_pos = IntPoint(np.array([0, 0, 0]))
@@ -106,6 +109,8 @@ class AppState(QObject):
         self._sd = SamplingDomain(IntPoint(np.array([0, 0, 0])), IntPoint(np.array(scan.shape) - 1))
         self._sd_show = False
         self._grid_show = False
+
+        self._build_save_connecitons()
 
     @property
     def scan(self):
@@ -138,7 +143,33 @@ class AppState(QObject):
     @property
     def grid_show(self):
         return self._grid_show
-    
+
+    def _to_dict(self) -> dict[str, Any]:
+        return {
+            "applied_scan_rotation_in_view_ref": self.applied_scan_rotation_in_view_ref.as_quat().tolist(),
+            "current_scan_rotation_in_view_ref": self.current_scan_rotation_in_view_ref.as_quat().tolist(),
+            "slice_pos": self.slice_pos.coord.tolist(),
+            "slice_pos_show_dir": self.slice_pos_show_dir.copy(),
+            "sd": self.sd.to_dict(),
+            "sd_show": self._sd_show,
+            "grid_show": self._grid_show,
+        }
+
+    def _save(self) -> None:
+        path = self._output_dir / "app_state.json"
+        with path.open("w", encoding="utf-8") as file:
+            json.dump(self._to_dict(), file, indent=4)
+
+    def _build_save_connecitons(self) -> None:
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(500)
+        self._save_timer.timeout.connect(self._save)
+
+        self.view_changed.connect(self._save_timer.start)
+        self.slice_pos_changed.connect(self._save_timer.start)
+        self.sd_changed.connect(self._save_timer.start)
+
     def fire_all_signals(self):
         self.view_changed.emit()
         self.slice_pos_changed.emit()
@@ -223,11 +254,12 @@ class AppState(QObject):
         self._grid_show = not self._grid_show
         self.sd_changed.emit()
 
+
 class CTidyStudio(QMainWindow):
-    def __init__(self, scan: Scan) -> None:
+    def __init__(self, scan: Scan, output_dir: Path) -> None:
         super().__init__()
 
-        self.app_state = AppState(scan)
+        self.app_state = AppState(scan, output_dir)
 
         self._build_slice_views()
         self._build_ui()
@@ -1298,8 +1330,7 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
     app = QApplication.instance() or QApplication(sys.argv)
         
     with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
-        scan.data[:10,:40,:100] = 0
-        window = CTidyStudio(scan)
+        window = CTidyStudio(scan, output_dir)
         window.show()
         exit_code = app.exec()
 
