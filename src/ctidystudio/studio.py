@@ -698,9 +698,8 @@ class CTidyStudio(QMainWindow):
         label.setFixedWidth(95)
 
         type_layout.addWidget(label, 1)
-        type_layout.addWidget(_create_type_button(SamplingType.FULL, signal), 1)
+        type_layout.addWidget(_create_type_button(SamplingType.NONE, signal), 1)
         type_layout.addWidget(_create_type_button(SamplingType.UNIDIR, signal), 1)
-        type_layout.addWidget(_create_type_button(SamplingType.UNIDIR_AUTO, signal), 1)
         type_layout.addWidget(_create_type_button(SamplingType.BIDIR, signal), 1)
         
         division_layout = QHBoxLayout()

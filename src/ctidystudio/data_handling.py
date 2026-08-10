@@ -393,15 +393,14 @@ class Domain:
         return cls(IntPoint(np.array(data['min_point'])), IntPoint(np.array(data['max_point'])))
 
 class SamplingType(str, Enum):
-    FULL = "Full"
-    UNIDIR = "Uni"
-    UNIDIR_AUTO = "Uni auto"
-    BIDIR = "Bi"
+    NONE = "None"
+    UNIDIR = "Unidir."
+    BIDIR = "Bidir."
 
 @dataclass
 class SamplingDomain(Domain):
     # UnidirAuto, computes the voxel depth equal to the max X or Y dimension
-    type: SamplingType = SamplingType.FULL
+    type: SamplingType = SamplingType.NONE
     grid_divisions: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
     # doi_size = number divisions making up the doi, if Unidir doi_size[1] = Z voxel depth
     doi_size: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
@@ -422,16 +421,23 @@ class SamplingDomain(Domain):
             for min_coord, max_coord, divisions in zip(self.min_point.coord, self.max_point.coord, self.grid_divisions + 2)
         )
 
-        if type != SamplingType.BIDIR:
-            x_coords, y_coords = np.meshgrid(x_linespacing, y_linespacing)
+        match self.type:
+            case SamplingType.NONE:
+                return []
 
-            min_points = [IntPoint(np.array([x, y, self.min_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
-            max_points = [IntPoint(np.array([x, y, self.max_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
+            case SamplingType.UNIDIR:
+                x_coords, y_coords = np.meshgrid(x_linespacing, y_linespacing)
 
-            return zip(min_points, max_points)
+                min_points = [IntPoint(np.array([x, y, self.min_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
+                max_points = [IntPoint(np.array([x, y, self.max_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
+
+                return zip(min_points, max_points)
             
-        else:
-            pass
+            case SamplingType.BIDIR:
+                return []
+
+            case _:
+                raise ValueError(f"Unsupported sampling type: {self.type}")
 
     def to_dict(self) -> dict[str, Any]:
         data = super().to_dict()
