@@ -1098,13 +1098,12 @@ class SliceView(QGraphicsView):
                         obj = QGraphicsEllipseItem(start_in_pixmap_coord.x()-1, start_in_pixmap_coord.y()-1, 2, 2, parent)
                         obj.setPen(Qt.PenStyle.NoPen)
                         obj.setBrush(QBrush(GRID_COLOR))
-                        obj.setZValue(11)
 
                     else:
                         obj = QGraphicsLineItem(QLineF(start_in_pixmap_coord, end_in_pixmap_coord), parent)
                         obj.setPen(QPen(GRID_COLOR, 1))
-                        obj.setZValue(8)
 
+                    obj.setZValue(11)
                     grid_lines.append(obj)
 
                 self._update_line_thickness()

@@ -372,12 +372,20 @@ class Domain:
     min_point: IntPoint
     max_point: IntPoint
 
+    def __post_init__(self) -> None:
+        self.normalize_bounds()
+
+    def normalize_bounds(self) -> None:
+        self.min_point, self.max_point = (IntPoint(np.minimum(self.min_point.coord, self.max_point.coord)), IntPoint(np.maximum(self.min_point.coord, self.max_point.coord)))
+
     def rotate_about(self, rotation: Rotation, point: "Point | None" = None) -> "Domain":
         return Domain(self.min_point.rotate_about(rotation, point), self.max_point.rotate_about(rotation, point))
 
     def rotate_about_inplace(self, rotation: Rotation, point: "Point | None" = None) -> None:
         self.min_point.rotate_about_inplace(rotation, point)
         self.max_point.rotate_about_inplace(rotation, point)
+
+        self.normalize_bounds()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -421,20 +429,23 @@ class SamplingDomain(Domain):
             for min_coord, max_coord, divisions in zip(self.min_point.coord, self.max_point.coord, self.grid_divisions + 2)
         )
 
+        def generate_lines(dir1_linespacing: np.ndarray, dir1 : CardinalDirection, dir2_linespacing: np.ndarray, dir2 : CardinalDirection) -> list[tuple[IntPoint, IntPoint]]:
+                dir1_coords, dir2_coords = np.meshgrid(dir1_linespacing, dir2_linespacing)
+
+                min_points = [IntPoint(np.put(coord := self.min_point.coord.copy(), [dir1.dir, dir2.dir], [x, y]) or coord) for x, y in zip(dir1_coords.ravel(), dir2_coords.ravel())]
+                max_points = [IntPoint(np.put(coord := self.max_point.coord.copy(), [dir1.dir, dir2.dir], [x, y]) or coord) for x, y in zip(dir1_coords.ravel(), dir2_coords.ravel())]
+
+                return list(zip(min_points, max_points))
+
         match self.type:
             case SamplingType.NONE:
                 return []
 
             case SamplingType.UNIDIR:
-                x_coords, y_coords = np.meshgrid(x_linespacing, y_linespacing)
-
-                min_points = [IntPoint(np.array([x, y, self.min_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
-                max_points = [IntPoint(np.array([x, y, self.max_point.coord[2]])) for x, y in zip(x_coords.ravel(), y_coords.ravel())]
-
-                return zip(min_points, max_points)
+                return generate_lines(x_linespacing, CardinalDirection.X, y_linespacing, CardinalDirection.Y)
             
             case SamplingType.BIDIR:
-                return []
+                return generate_lines(x_linespacing, CardinalDirection.X, y_linespacing[::2], CardinalDirection.Y) + generate_lines(z_linespacing, CardinalDirection.Z, y_linespacing[1::2], CardinalDirection.Y)
 
             case _:
                 raise ValueError(f"Unsupported sampling type: {self.type}")
