@@ -9,7 +9,8 @@
             "console": "integratedTerminal",
             "args": [
                 "${workspaceFolder}/input_scan_example",
-                "--voxel-size", "0.005"
+                "--voxel-size", "0.005",
+                "--mode", "resume",
             ]
         }
     ]

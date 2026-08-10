@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QGraphicsRectItem,
     QLayout,
+    QGraphicsEllipseItem,
 )
 from PySide6.QtGui import (
     QColor,
@@ -66,7 +67,7 @@ from ctidystudio.data_handling import (
 
 
 SD_COLOR = QColor("red")
-GRID_COLOR = QColor("#B89B00")
+GRID_COLOR = QColor("#18FBFF")
 
 
 SI_PREFIXES = {
@@ -144,8 +145,8 @@ class AppState(QObject):
 
     def _to_dict(self) -> dict[str, Any]:
         return {
-            "applied_scan_rotation_in_view_ref": self.applied_scan_rotation_in_view_ref.as_quat().tolist(),
-            "current_scan_rotation_in_view_ref": self.current_scan_rotation_in_view_ref.as_quat().tolist(),
+            "applied_scan_rotation_in_view_ref": self.applied_scan_rotation_in_view_ref.key,
+            "current_scan_rotation_in_view_ref": self.current_scan_rotation_in_view_ref.key,
             "slice_pos": self.slice_pos.coord.tolist(),
             "slice_pos_show_dir": self.slice_pos_show_dir.copy(),
             "sd": self.sd.to_dict(),
@@ -157,6 +158,36 @@ class AppState(QObject):
         path = dir / "app_state.json"
         with path.open("w", encoding="utf-8") as file:
             json.dump(self._to_dict(), file, indent=4)
+
+    def load(self, app_state_path: Path) -> None:
+        with app_state_path.open("r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        if "applied_scan_rotation_in_view_ref" in data:
+            self._current_scan_rotation_in_view_ref = SnappedRotation(tuple(tuple(row) for row in data['applied_scan_rotation_in_view_ref']))
+            self.on_apply_rotation_request()
+
+        if "current_scan_rotation_in_view_ref" in data:
+            self._current_scan_rotation_in_view_ref = SnappedRotation(tuple(tuple(row) for row in data['current_scan_rotation_in_view_ref']))
+
+        if "slice_pos" in data:
+            self._slice_pos = IntPoint(np.array(data['slice_pos']))
+
+        if "slice_pos_show_dir" in data:
+            self._slice_pos_show_dir = data['slice_pos_show_dir']
+
+        if "sd" in data:
+            sd = SamplingDomain.from_dict(data["sd"])
+            if sd is not None:
+                self._sd = sd
+
+        if "sd_show" in data:
+            self._sd_show = data['sd_show']
+
+        if "grid_show" in data:
+            self._grid_show = data['grid_show']
+
+        self.fire_all_signals()
     
     def fire_all_signals(self):
         self.view_changed.emit()
@@ -272,6 +303,9 @@ class CTidyStudio(QMainWindow):
 
     def _build_app_state(self, scan: Scan) -> None:
         self.app_state = AppState(scan)
+
+        if self._app_config.mode == Mode.RESUME:
+            self.app_state.load(self._app_config.input_dir / "app_state.json")
 
         self._build_save_connections()
 
@@ -1013,11 +1047,11 @@ class SliceView(QGraphicsView):
         
         self._horizontal_slice_line.setLine(0, slice_pos_in_pixmap_coord.y(), self._pixmap_item.boundingRect().width(), slice_pos_in_pixmap_coord.y())
         self._horizontal_slice_line.setPen(QPen(view_orientation_in_view_coord.up.associated_color, 1))
-        self._horizontal_slice_line.setZValue(11)
+        self._horizontal_slice_line.setZValue(12)
         
         self._vertical_slice_line.setLine(slice_pos_in_pixmap_coord.x(), 0, slice_pos_in_pixmap_coord.x(), self._pixmap_item.boundingRect().height())
         self._vertical_slice_line.setPen(QPen(view_orientation_in_view_coord.right.associated_color, 1))
-        self._vertical_slice_line.setZValue(11)
+        self._vertical_slice_line.setZValue(12)
         self._update_line_thickness()
 
         self._horizontal_slice_line.setVisible(self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.up.dir])
@@ -1031,6 +1065,10 @@ class SliceView(QGraphicsView):
             if isinstance(item, (QGraphicsLineItem, QGraphicsRectItem)):
                 item.setPen(QPen(item.pen().color(), line_thickness))
 
+            if isinstance(item, QGraphicsEllipseItem):
+                center = item.rect().center()
+                item.setRect(center.x() - line_thickness, center.y() - line_thickness, line_thickness*2, line_thickness*2)
+
     def _update_sd_outline(self) -> None:
         min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.min_point))
         max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.max_point))
@@ -1043,12 +1081,12 @@ class SliceView(QGraphicsView):
         self._rectangle_sd_outline.setVisible(self.app_state.sd_show)
 
     def _make_grid_updater(self, parent: QGraphicsPixmapItem) -> Callable:
-        grid_lines: list[QGraphicsLineItem] = []
+        grid_lines: list[QGraphicsLineItem | QGraphicsEllipseItem] = []
 
         def update_grid_lines() -> None:
-            for line in grid_lines:
-                if line is not None:
-                    self.scene.removeItem(line)
+            for obj in grid_lines:
+                if obj is not None:
+                    self.scene.removeItem(obj)
 
             grid_lines.clear()
 
@@ -1057,11 +1095,18 @@ class SliceView(QGraphicsView):
                     start_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(start))
                     end_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(end))
 
-                    line = QGraphicsLineItem(QLineF(start_in_pixmap_coord, end_in_pixmap_coord), parent)
-                    line.setPen(QPen(GRID_COLOR, 1))
-                    line.setZValue(8)
+                    if start_in_pixmap_coord == end_in_pixmap_coord:
+                        obj = QGraphicsEllipseItem(start_in_pixmap_coord.x()-1, start_in_pixmap_coord.y()-1, 2, 2, parent)
+                        obj.setPen(Qt.PenStyle.NoPen)
+                        obj.setBrush(QBrush(GRID_COLOR))
+                        obj.setZValue(11)
 
-                    grid_lines.append(line)
+                    else:
+                        obj = QGraphicsLineItem(QLineF(start_in_pixmap_coord, end_in_pixmap_coord), parent)
+                        obj.setPen(QPen(GRID_COLOR, 1))
+                        obj.setZValue(8)
+
+                    grid_lines.append(obj)
 
                 self._update_line_thickness()
 

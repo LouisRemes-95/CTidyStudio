@@ -22,6 +22,12 @@ class Point:
     def _set_coord(self, coord: np.ndarray) -> None:
         self._coord = coord.copy()
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Point):
+            return NotImplemented
+
+        return np.array_equal(self._coord, other._coord)
+        
     @property
     def coord(self) -> np.ndarray:
         return self._coord
@@ -123,14 +129,15 @@ class SnappedRotation:
         closest_index = int(np.argmin(angular_distances))
         return CARDINAL_ROTATIONS[closest_index]
 
+    @property
     def key(self) -> RotationMatrixKey:
-        return tuple(tuple(row) for row in np.rint(self.rotation.as_matrix()).astype(int))
+        return tuple(tuple(map(int, row)) for row in np.rint(self.rotation.as_matrix()).astype(int))
 
     def __hash__(self) -> int:
-        return hash(self.key())
+        return hash(self.key)
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, SnappedRotation) and self.key() == other.key()
+        return isinstance(other, SnappedRotation) and self.key == other.key
 
     def __mul__(self, other: object) -> "SnappedRotation":
         if isinstance(other, SnappedRotation):
@@ -378,6 +385,13 @@ class Domain:
             "max_point": self.max_point.coord.tolist(),
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Domain | None":
+        if "min_point" not in data or "max_point" not in data:
+            return None
+        
+        return cls(IntPoint(np.array(data['min_point'])), IntPoint(np.array(data['max_point'])))
+
 class SamplingType(str, Enum):
     FULL = "Full"
     UNIDIR = "Uni"
@@ -431,4 +445,28 @@ class SamplingDomain(Domain):
 
         return data
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "SamplingDomain | None":
+        domain = Domain.from_dict(data)
+        if domain is None:
+            return None
 
+        kwargs = {}
+
+        if "type" in data:
+            kwargs["type"] = SamplingType(data["type"])
+
+        if "grid_divisions" in data:
+            kwargs["grid_divisions"] = np.array(data["grid_divisions"], dtype=int)
+
+        if "doi_size" in data:
+            kwargs["doi_size"] = np.array(data["doi_size"], dtype=int)
+
+        if "seed" in data:
+            kwargs["seed"] = data["seed"]
+
+        return cls(
+            min_point=domain.min_point,
+            max_point=domain.max_point,
+            **kwargs,
+        )
