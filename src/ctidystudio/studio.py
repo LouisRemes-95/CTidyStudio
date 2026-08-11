@@ -65,10 +65,53 @@ from ctidystudio.data_handling import (
     SnappedRotation,
 )
 
+STYTE_SHEET = """
+    QPushButton {
+        color: white;
+        border: 1px solid #666;
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 12px;
+        background-color: #3a3a3a;
+    }
+
+    QPushButton:!checked:hover:!pressed,
+    QPushButton:checked:pressed {
+        border: 1px solid #7aa2d6;
+    }
+
+    QPushButton:!checked:pressed,
+    QPushButton:checked:hover:!pressed {
+        background-color: #4a6fa5;
+    }
+
+    QPushButton:checked:!pressed:!hover {
+        background-color: #4a6fa5;
+        border: 1px solid #7aa2d6;
+    }
+
+    QPushButton:disabled {
+        background-color: #2f2f2f;
+        color: #888;
+        border-color: #444;
+    }
+
+    QLineEdit {
+        background-color: #3a3a3a;
+        color: white;
+        border: 1px solid #666;
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+
+    QLineEdit:focus {
+        border: 1px solid #7aa2d6;
+    }
+"""
 
 SD_COLOR = QColor("red")
 GRID_COLOR = QColor("#18FBFF")
-
 
 SI_PREFIXES = {
     -12: "p",   # pico
@@ -222,8 +265,9 @@ class AppState(QObject):
 
         self.slice_pos_changed.emit()
 
-    def on_switch_slice_pos_show_dir_request(self, direction: CardinalDirection):
-        self._slice_pos_show_dir[direction.dir] = not self._slice_pos_show_dir[direction.dir]
+    def on_switch_slice_pos_show_dir_request(self, direction: CardinalDirection, show: bool):
+        self._slice_pos_show_dir[direction.dir] = show
+
         self.slice_pos_changed.emit()
 
     def on_move_min_sd_request(self, direction: CardinalDirection, value:int):
@@ -250,11 +294,12 @@ class AppState(QObject):
 
         self.sd_changed.emit()
 
-    def on_switch_sd_show_request(self):
-        self._sd_show = not self._sd_show
+    def on_switch_sd_show_request(self, show: bool):
+        self._sd_show = show
+
         self.sd_changed.emit()
 
-    def change_sd_type_request(self, type: SamplingType):
+    def change_grid_type_request(self, type: SamplingType):
         self.sd.type = type
 
         self.sd_changed.emit()
@@ -269,8 +314,9 @@ class AppState(QObject):
 
         self.sd_changed.emit()
 
-    def on_switch_grid_show_request(self):
-        self._grid_show = not self._grid_show
+    def on_switch_grid_show_request(self, show: bool):
+        self._grid_show = show
+
         self.sd_changed.emit()
 
 
@@ -289,6 +335,8 @@ class AppConfig:
 
 
 class CTidyStudio(QMainWindow):
+    OBJECT_FIXED_WIDTH: Final = 95
+
     def __init__(self, scan: Scan, input_dir: Path, output_dir: Path, mode: "Mode") -> None:
         super().__init__()
 
@@ -420,24 +468,11 @@ class CTidyStudio(QMainWindow):
         btn.setCursor(Qt.PointingHandCursor)
         btn.setFocusPolicy(Qt.NoFocus)
         btn.setFixedHeight(32)
-
         btn.setText("Apply rotation")
 
         btn.setStyleSheet("""
             QPushButton {
-                background-color: #3a3a3a;
-                color: white;
-                border: 1px solid #666;
                 border-radius: 16px;
-                padding: 6px 10px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #4a6fa5;
-                border: 1px solid #7aa2d6;
-            }
-            QPushButton:pressed {
-                background-color: #34527a;
             }
         """)
 
@@ -483,57 +518,48 @@ class CTidyStudio(QMainWindow):
         return control
 
     @staticmethod
-    def _create_show_button(text: str, action: Callable, update_signal: Signal, Color: QColor, is_shown: Callable[[], bool]) -> QPushButton:
+    def _create_show_button(text: str, action: Callable[[bool], None], Color: QColor, checked: bool, width: int) -> QPushButton:
         btn = QPushButton()
-        btn.clicked.connect(action)
-        btn.setFixedWidth(95)
+        btn.setCheckable(True)
+        btn.setChecked(checked)
+        btn.setFixedWidth(width)
         btn.setCursor(Qt.PointingHandCursor)
         btn.setFocusPolicy(Qt.NoFocus)
+        
+        btn.toggled.connect(action)
 
-        def update_btn() -> None:
-            if is_shown():
-                btn.setText(f"Hide {text}")
+        # btn.setStyleSheet(f"""
+        #     QPushButton:!checked:hover {{
+        #         border: 1px solid {Color.lighter(150).name()};
+        #     }}
 
-                btn.setStyleSheet(f"""
-                        QPushButton {{
-                            background-color: {Color.name()};
-                            color: white;
-                            border: 1px solid #666;
-                            border-radius: 6px;
-                            padding: 6px 10px;
-                            font-size: 12px;
-                        }}
-                        QPushButton:hover {{
-                            background-color: {Color.darker(130).name()};
-                            border: 1px solid #7aa2d6;
-                        }}
-                        QPushButton:pressed {{
-                            background-color: {Color.name()};
-                        }}
-                    """)
-                
-            else:
-                btn.setText(f"Show {text}")
+        #     QPushButton:!checked:pressed,
+        #     QPushButton:checked:!hover:!pressed {{
+        #         border: 1px solid {Color.lighter(150).name()};
+        #         background-color: {Color.name()};
+        #     }}
+        # """)
 
-                btn.setStyleSheet("""
-                        QPushButton {
-                            background-color: #3a3a3a;
-                            color: white;
-                            border: 1px solid #666;
-                            border-radius: 6px;
-                            padding: 6px 10px;
-                            font-size: 12px;
-                        }
-                        QPushButton:hover {
-                            background-color: #4a6fa5;
-                            border: 1px solid #7aa2d6;
-                        }
-                        QPushButton:pressed {
-                            background-color: #34527a;
-                        }
-                    """)
-            
-        update_signal.connect(update_btn)
+        # btn.setStyleSheet(f"""
+        #     QPushButton[shown="true"],
+        #     QPushButton[shown="true"]:hover,
+        #     QPushButton[shown="false"]:pressed {{
+        #         background-color: {Color.name()};
+        #         border: 1px solid {Color.lighter(150).name()};
+        #     }}
+
+        #     QPushButton[shown="true"]:hover,
+        #     QPushButton[shown="false"]:pressed {{
+        #         background-color: #3a3a3a;
+        #         border: 1px solid {Color.lighter(150).name()};
+        #     }}
+        # """)
+
+        def update_text(checked: bool) -> None:
+            btn.setText(f"{'Hide' if checked else 'Show'} {text}")
+
+        update_text(checked)
+        btn.toggled.connect(update_text)
 
         return btn
 
@@ -545,10 +571,10 @@ class CTidyStudio(QMainWindow):
 
         btn = self._create_show_button(
             f"{direction} Slice", 
-            partial(self.app_state.on_switch_slice_pos_show_dir_request, direction), 
-            signal, 
+            partial(self.app_state.on_switch_slice_pos_show_dir_request, direction),
             direction.associated_color, 
-            lambda: self.app_state.slice_pos_show_dir[direction.dir]
+            self.app_state.slice_pos_show_dir[direction.dir],
+            self.OBJECT_FIXED_WIDTH
             )
         
         binding = IncrementControlBinding(
@@ -604,7 +630,7 @@ class CTidyStudio(QMainWindow):
 
         for label in [min_label, max_label]:
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            label.setFixedWidth(95)
+            label.setFixedWidth(self.OBJECT_FIXED_WIDTH)
 
         min_binding = IncrementControlBinding(
             "normal",
@@ -649,53 +675,30 @@ class CTidyStudio(QMainWindow):
 
         def _create_type_button(type: SamplingType, update_signal = Signal) -> QPushButton:
             btn = QPushButton()
-            btn.clicked.connect(partial(self.app_state.change_sd_type_request, type))
+            btn.clicked.connect(partial(self.app_state.change_grid_type_request, type))
             btn.setFocusPolicy(Qt.NoFocus)
             btn.setText(type.value)
+            btn.setStyleSheet("""
+                QPushButton:disabled {
+                    background-color: #4a6fa5;
+                    color: white;
+                    border: 1px solid #7aa2d6;
+                }
+            """)
 
             def update_btn() -> None:
-                if self.app_state.sd.type == type:
-                    btn.setEnabled(False)
-                    btn.setCursor(Qt.ArrowCursor)
-                    btn.setStyleSheet("""
-                        QPushButton {
-                            background-color: #4a6fa5;
-                            color: white;
-                            border: 1px solid #666;
-                            border-radius: 6px;
-                            padding: 6px 10px;
-                            font-size: 12px;
-                        }
-                    """)
-                
-                else:
-                    btn.setEnabled(True)
-                    btn.setCursor(Qt.PointingHandCursor)
-                    btn.setStyleSheet("""
-                        QPushButton {
-                            background-color: #3a3a3a;
-                            color: white;
-                            border: 1px solid #666;
-                            border-radius: 6px;
-                            padding: 6px 10px;
-                            font-size: 12px;
-                        }
-                        QPushButton:hover {
-                            background-color: #34527a;
-                            border: 1px solid #7aa2d6;
-                        }
-                        QPushButton:pressed {
-                            background-color: #4a6fa5;
-                        }
-                    """)
-            
+                selected = self.app_state.sd.type == type
+
+                btn.setEnabled(not selected)
+                btn.setCursor(Qt.ArrowCursor if selected else Qt.PointingHandCursor)
+                        
             update_signal.connect(update_btn)
 
             return btn
 
         label = QLabel(f"Type")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setFixedWidth(95)
+        label.setFixedWidth(self.OBJECT_FIXED_WIDTH)
 
         type_layout.addWidget(label, 1)
         type_layout.addWidget(_create_type_button(SamplingType.NONE, signal), 1)
@@ -709,9 +712,9 @@ class CTidyStudio(QMainWindow):
         btn = self._create_show_button(
             f"grid",
             self.app_state.on_switch_grid_show_request,
-            signal,
             GRID_COLOR,
-            lambda: self.app_state.grid_show
+            self.app_state.grid_show,
+            self.OBJECT_FIXED_WIDTH
             )
 
         division_layout.addWidget(btn, 1)
@@ -740,7 +743,13 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(5)
 
-        btn = self._create_show_button("DOI", self.app_state.on_switch_sd_show_request, self.app_state.sd_changed, SD_COLOR, lambda: self.app_state.sd_show)
+        btn = self._create_show_button(
+            "SD",
+            self.app_state.on_switch_sd_show_request,
+            SD_COLOR,
+            self.app_state.sd_show,
+            self.OBJECT_FIXED_WIDTH
+        )
 
         layout.addWidget(btn)
 
@@ -866,11 +875,9 @@ class SliceView(QGraphicsView):
 
         # scale font
         font_size = int(size * 1.2)
-        font = self._rotate_cw_btn.font()
-        font.setPixelSize(font_size)
 
-        self._rotate_cw_btn.setFont(font)
-        self._rotate_ccw_btn.setFont(font)
+        self._set_rotate_button_style(self._rotate_cw_btn, font_size)
+        self._set_rotate_button_style(self._rotate_ccw_btn, font_size)
 
         # position
         self._rotate_cw_btn.move(horizontal_margin + size + horizontal_margin, vertical_margin)
@@ -1123,9 +1130,16 @@ class SliceView(QGraphicsView):
         shadow.setColor(QColor(0, 0, 0))
         btn.setGraphicsEffect(shadow)
 
-        # style
-        btn.setStyleSheet("""
-            QPushButton {
+        self._set_rotate_button_style(btn, 1)
+
+        btn.clicked.connect(func)
+
+        return btn
+
+    @staticmethod
+    def _set_rotate_button_style(btn: QPushButton, font_size: int) -> None:
+        btn.setStyleSheet(f"""
+            QPushButton {{
                 background: transparent;
                 color: white;
                 border: none;
@@ -1133,18 +1147,17 @@ class SliceView(QGraphicsView):
                 font-weight: bold;
                 padding: 0px;
                 margin: 0px;
-            }
-            QPushButton:hover {
+                font-size: {font_size}px;
+            }}
+
+            QPushButton:hover {{
                 color: rgb(51, 153, 255);
-            }
-            QPushButton:pressed {
+            }}
+
+            QPushButton:pressed {{
                 color: rgba(51, 153, 255, 120);
-            }
+            }}
         """)
-
-        btn.clicked.connect(func)
-
-        return btn
 
     def _on_rotation_btn_clicked(self, clockwise: bool) -> None:
         view_orientation = self._view_orientation
@@ -1216,23 +1229,6 @@ class IncrementButton(QPushButton):
         self._on_increment_signal = on_increment_signal
 
         self.setCursor(Qt.PointingHandCursor)
-        self.setStyleSheet("""
-            QPushButton {
-                background-color: #3a3a3a;
-                color: white;
-                border: 1px solid #666;
-                border-radius: 6px;
-                padding: 6px 10px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #4a6fa5;
-                border: 1px solid #7aa2d6;
-            }
-            QPushButton:pressed {
-                background-color: #34527a;
-            }
-        """)
 
         self.clicked.connect(self._on_clicked)
 
@@ -1281,25 +1277,6 @@ class IncrementControl(QWidget):
         layout.addWidget(self._increase_10_btn, 2)
         layout.addWidget(self._increase_100_btn, 3)
 
-        self.setStyleSheet("""
-            #controlPanel {
-                background-color: #2b2b2b;
-                border: 1px solid white;
-                border-radius: 12px;
-            }
-            QLineEdit {
-                background-color: #3a3a3a;
-                color: white;
-                border: 1px solid #666;
-                border-radius: 6px;
-                padding: 6px 10px;
-                font-size: 12px;
-            }
-            QLineEdit:focus {
-                border: 1px solid #7aa2d6;
-            }
-        """)
-
     def _on_value_submitted(self) -> None:
         text = self._editable_display.text().strip()
         if not text:
@@ -1337,25 +1314,6 @@ class SmallIncrementControl(QWidget):
         layout.addWidget(self._editable_display, 4)
         layout.addWidget(self._increase_1_btn, 1)
 
-        self.setStyleSheet("""
-            #controlPanel {
-                background-color: #2b2b2b;
-                border: 1px solid white;
-                border-radius: 12px;
-            }
-            QLineEdit {
-                background-color: #3a3a3a;
-                color: white;
-                border: 1px solid #666;
-                border-radius: 6px;
-                padding: 6px 10px;
-                font-size: 12px;
-            }
-            QLineEdit:focus {
-                border: 1px solid #7aa2d6;
-            }
-        """)
-
     def _on_value_submitted(self) -> None:
         text = self._editable_display.text().strip()
         if not text:
@@ -1384,6 +1342,7 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
             raise ValueError(f"Unknown mode: {mode}")
         
     app = QApplication.instance() or QApplication(sys.argv)
+    app.setStyleSheet(STYTE_SHEET)
         
     with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
         window = CTidyStudio(scan, input_dir, output_dir, mode)
