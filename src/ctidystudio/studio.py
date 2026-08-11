@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QGraphicsRectItem,
     QLayout,
     QGraphicsEllipseItem,
+    QButtonGroup,
 )
 from PySide6.QtGui import (
     QColor,
@@ -663,26 +664,32 @@ class CTidyStudio(QMainWindow):
         layout.setSpacing(5)
         layout.addLayout(type_layout)
 
-        def _create_type_button(type: SamplingType, update_signal = Signal) -> QPushButton:
-            btn = QPushButton()
-            btn.clicked.connect(partial(self.app_state.change_grid_type_request, type))
+        type_group = QButtonGroup(parent)
+        type_group.setExclusive(True)
+
+        def _create_type_button(type: SamplingType) -> QPushButton:
+            btn = QPushButton(type.value)
+            btn.setCheckable(True)
             btn.setFocusPolicy(Qt.NoFocus)
-            btn.setText(type.value)
+            btn.setCursor(Qt.PointingHandCursor)
             btn.setStyleSheet("""
-                QPushButton:disabled {
+                QPushButton:checked:hover {
                     background-color: #4a6fa5;
-                    color: white;
                     border: 1px solid #7aa2d6;
                 }
             """)
 
-            def update_btn() -> None:
-                selected = self.app_state.sd.type == type
+            btn.clicked.connect(partial(self.app_state.change_grid_type_request, type))
 
-                btn.setEnabled(not selected)
-                btn.setCursor(Qt.ArrowCursor if selected else Qt.PointingHandCursor)
-                        
-            update_signal.connect(update_btn)
+            type_group.addButton(btn)
+
+            btn.setChecked(self.app_state.sd.type == type)
+
+            def update_cursor(checked: bool) -> None:
+                btn.setCursor(Qt.ArrowCursor if checked else Qt.PointingHandCursor)
+
+            btn.toggled.connect(update_cursor)
+            update_cursor(btn.isChecked())
 
             return btn
 
@@ -691,9 +698,9 @@ class CTidyStudio(QMainWindow):
         label.setFixedWidth(self.OBJECT_FIXED_WIDTH)
 
         type_layout.addWidget(label, 1)
-        type_layout.addWidget(_create_type_button(SamplingType.NONE, signal), 1)
-        type_layout.addWidget(_create_type_button(SamplingType.UNIDIR, signal), 1)
-        type_layout.addWidget(_create_type_button(SamplingType.BIDIR, signal), 1)
+        type_layout.addWidget(_create_type_button(SamplingType.NONE), 1)
+        type_layout.addWidget(_create_type_button(SamplingType.UNIDIR), 1)
+        type_layout.addWidget(_create_type_button(SamplingType.BIDIR), 1)
         
         division_layout = QHBoxLayout()
         division_layout.setSpacing(5)
