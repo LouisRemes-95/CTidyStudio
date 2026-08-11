@@ -528,32 +528,22 @@ class CTidyStudio(QMainWindow):
         
         btn.toggled.connect(action)
 
-        # btn.setStyleSheet(f"""
-        #     QPushButton:!checked:hover {{
-        #         border: 1px solid {Color.lighter(150).name()};
-        #     }}
+        btn.setStyleSheet(f"""
+            QPushButton:!checked:hover:!pressed,
+            QPushButton:checked:pressed {{
+                border: 1px solid {Color.lighter(150).name()};
+            }}
 
-        #     QPushButton:!checked:pressed,
-        #     QPushButton:checked:!hover:!pressed {{
-        #         border: 1px solid {Color.lighter(150).name()};
-        #         background-color: {Color.name()};
-        #     }}
-        # """)
+            QPushButton:!checked:pressed,
+            QPushButton:checked:hover:!pressed {{
+                background-color: {Color.name()};
+            }}
 
-        # btn.setStyleSheet(f"""
-        #     QPushButton[shown="true"],
-        #     QPushButton[shown="true"]:hover,
-        #     QPushButton[shown="false"]:pressed {{
-        #         background-color: {Color.name()};
-        #         border: 1px solid {Color.lighter(150).name()};
-        #     }}
-
-        #     QPushButton[shown="true"]:hover,
-        #     QPushButton[shown="false"]:pressed {{
-        #         background-color: #3a3a3a;
-        #         border: 1px solid {Color.lighter(150).name()};
-        #     }}
-        # """)
+            QPushButton:checked:!pressed:!hover {{
+                border: 1px solid {Color.lighter(150).name()};
+                background-color: {Color.name()};
+            }}
+        """)
 
         def update_text(checked: bool) -> None:
             btn.setText(f"{'Hide' if checked else 'Show'} {text}")
