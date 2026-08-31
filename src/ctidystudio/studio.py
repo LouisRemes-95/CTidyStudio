@@ -76,17 +76,17 @@ STYTE_SHEET = """
         background-color: #3a3a3a;
     }
 
-    QPushButton:!checked:hover:!pressed,
+    QPushButton:enabled:!checked:hover:!pressed,
     QPushButton:checked:pressed {
         border: 1px solid #7aa2d6;
     }
 
-    QPushButton:!checked:pressed,
+    QPushButton:enabled:!checked:pressed,
     QPushButton:checked:hover:!pressed {
         background-color: #4a6fa5;
     }
 
-    QPushButton:checked:!pressed:!hover {
+    QPushButton:enabled:checked:!pressed:!hover {
         background-color: #4a6fa5;
         border: 1px solid #7aa2d6;
     }
@@ -108,6 +108,12 @@ STYTE_SHEET = """
 
     QLineEdit:focus {
         border: 1px solid #7aa2d6;
+    }
+
+    QLineEdit:disabled {
+        background-color: #2f2f2f;
+        color: #888;
+        border-color: #444;
     }
 """
 
@@ -185,7 +191,7 @@ class AppState(QObject):
     
     @property
     def grid_show(self):
-        return self._grid_show
+        return self._grid_show and self._sd_show
 
     def _to_dict(self) -> dict[str, Any]:
         return {
@@ -525,17 +531,17 @@ class CTidyStudio(QMainWindow):
         btn.toggled.connect(action)
 
         btn.setStyleSheet(f"""
-            QPushButton:!checked:hover:!pressed,
+            QPushButton:enabled:!checked:hover:!pressed,
             QPushButton:checked:pressed {{
                 border: 1px solid {Color.lighter(150).name()};
             }}
 
-            QPushButton:!checked:pressed,
+            QPushButton:enabled:!checked:pressed,
             QPushButton:checked:hover:!pressed {{
                 background-color: {Color.name()};
             }}
 
-            QPushButton:checked:!pressed:!hover {{
+            QPushButton:enabled:checked:!pressed:!hover {{
                 border: 1px solid {Color.lighter(150).name()};
                 background-color: {Color.name()};
             }}
