@@ -400,7 +400,7 @@ class Domain:
         
         return cls(IntPoint(np.array(data['min_point'])), IntPoint(np.array(data['max_point'])))
 
-class SamplingType(str, Enum):
+class GridType(str, Enum):
     NONE = "None"
     UNIDIR = "Unidir."
     BIDIR = "Bidir."
@@ -408,9 +408,11 @@ class SamplingType(str, Enum):
 @dataclass
 class SamplingDomain(Domain):
     # UnidirAuto, computes the voxel depth equal to the max X or Y dimension
-    type: SamplingType = SamplingType.NONE
+    grid_type: GridType = GridType.NONE
     grid_divisions: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
     # doi_size = number divisions making up the doi, if Unidir doi_size[1] = Z voxel depth
+    full_domain: bool = True
+    uni_auto_depth: bool = True
     doi_size: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
     seed: int = 0
 
@@ -437,14 +439,14 @@ class SamplingDomain(Domain):
 
                 return list(zip(min_points, max_points))
 
-        match self.type:
-            case SamplingType.NONE:
+        match self.grid_type:
+            case GridType.NONE:
                 return []
 
-            case SamplingType.UNIDIR:
+            case GridType.UNIDIR:
                 return generate_lines(x_linespacing, CardinalDirection.X, y_linespacing, CardinalDirection.Y)
             
-            case SamplingType.BIDIR:
+            case GridType.BIDIR:
                 return generate_lines(x_linespacing, CardinalDirection.X, y_linespacing[::2], CardinalDirection.Y) + generate_lines(z_linespacing, CardinalDirection.Z, y_linespacing[1::2], CardinalDirection.Y)
 
             case _:
@@ -454,8 +456,10 @@ class SamplingDomain(Domain):
         data = super().to_dict()
 
         data.update({
-            "type": self.type.value,
+            "grid_type": self.grid_type.value,
             "grid_divisions": self.grid_divisions.tolist(),
+            "full_domain": self.full_domain,
+            "uni_auto_depth": self.uni_auto_depth,
             "doi_size": self.doi_size.tolist(),
             "seed": self.seed,
         })
@@ -470,11 +474,17 @@ class SamplingDomain(Domain):
 
         kwargs = {}
 
-        if "type" in data:
-            kwargs["type"] = SamplingType(data["type"])
+        if "grid_type" in data:
+            kwargs["grid_type"] = GridType(data["grid_type"])
 
         if "grid_divisions" in data:
             kwargs["grid_divisions"] = np.array(data["grid_divisions"], dtype=int)
+
+        if "full_domain" in data:
+            kwargs["full_domain"] = data["full_domain"]
+
+        if "uni_auto_depth" in data:
+            kwargs["uni_auto_depth"] = data["uni_auto_depth"]
 
         if "doi_size" in data:
             kwargs["doi_size"] = np.array(data["doi_size"], dtype=int)

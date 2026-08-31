@@ -62,7 +62,7 @@ from ctidystudio.data_handling import (
     IntPoint,
     Domain,
     SamplingDomain,
-    SamplingType,
+    GridType,
     SnappedRotation,
 )
 
@@ -119,6 +119,7 @@ STYTE_SHEET = """
 
 SD_COLOR = QColor("red")
 GRID_COLOR = QColor("#18FBFF")
+DOI_COLOR = QColor("#18FBFF")
 
 SI_PREFIXES = {
     -12: "p",   # pico
@@ -160,6 +161,7 @@ class AppState(QObject):
         self._sd = SamplingDomain(IntPoint(np.array([0, 0, 0])), IntPoint(np.array(scan.shape) - 1))
         self._sd_show = False
         self._grid_show = False
+        self._doi_show = False
 
     @property
     def scan(self):
@@ -192,6 +194,10 @@ class AppState(QObject):
     @property
     def grid_show(self):
         return self._grid_show and self._sd_show
+    
+    @property
+    def doi_show(self):
+        return self._doi_show and self._grid_show and self._sd_show
 
     def _to_dict(self) -> dict[str, Any]:
         return {
@@ -202,6 +208,7 @@ class AppState(QObject):
             "sd": self.sd.to_dict(),
             "sd_show": self._sd_show,
             "grid_show": self._grid_show,
+            "doi_show": self._doi_show,
         }
 
     def save(self, dir: Path) -> None:
@@ -236,6 +243,9 @@ class AppState(QObject):
 
         if "grid_show" in data:
             self._grid_show = data['grid_show']
+
+        if "doi_show" in data:
+            self._doi_show = data['doi_show']
 
         self.fire_all_signals()
     
@@ -306,8 +316,8 @@ class AppState(QObject):
 
         self.sd_changed.emit()
 
-    def change_grid_type_request(self, type: SamplingType):
-        self.sd.type = type
+    def change_grid_type_request(self, type: GridType):
+        self.sd.grid_type = type
 
         self.sd_changed.emit()
 
@@ -323,6 +333,21 @@ class AppState(QObject):
 
     def on_switch_grid_show_request(self, show: bool):
         self._grid_show = show
+
+        self.sd_changed.emit()
+
+    def on_switch_doi_show_request(self, show: bool):
+        self._doi_show = show
+
+        self.sd_changed.emit()
+
+    def on_switch_full_domain_request(self, full: bool):
+        self._sd.full_domain = full
+
+        self.sd_changed.emit()
+
+    def on_switch_auto_depth_request(self, auto: bool):
+        self._sd.uni_auto_depth = auto
 
         self.sd_changed.emit()
 
@@ -520,11 +545,12 @@ class CTidyStudio(QMainWindow):
         return control
 
     @staticmethod
-    def _create_show_button(text: str, action: Callable[[bool], None], Color: QColor, checked: bool, width: int) -> QPushButton:
+    def _create_show_button(text: str, action: Callable[[bool], None], Color: QColor, checked: bool, width: int | None) -> QPushButton:
         btn = QPushButton()
         btn.setCheckable(True)
         btn.setChecked(checked)
-        btn.setFixedWidth(width)
+        if width is not None:
+            btn.setFixedWidth(width)
         btn.setCursor(Qt.PointingHandCursor)
         btn.setFocusPolicy(Qt.NoFocus)
         
@@ -674,7 +700,7 @@ class CTidyStudio(QMainWindow):
         type_group = QButtonGroup(container)
         type_group.setExclusive(True)
 
-        def _create_type_button(type: SamplingType) -> QPushButton:
+        def _create_type_button(type: GridType) -> QPushButton:
             btn = QPushButton(type.value)
             btn.setCheckable(True)
             btn.setFocusPolicy(Qt.NoFocus)
@@ -692,7 +718,7 @@ class CTidyStudio(QMainWindow):
 
             type_group.addButton(btn)
 
-            btn.setChecked(self.app_state.sd.type == type)
+            btn.setChecked(self.app_state.sd.grid_type == type)
 
             def update_cursor(checked: bool) -> None:
                 btn.setCursor(
@@ -709,9 +735,9 @@ class CTidyStudio(QMainWindow):
         label.setFixedWidth(self.OBJECT_FIXED_WIDTH)
 
         type_layout.addWidget(label, 1)
-        type_layout.addWidget(_create_type_button(SamplingType.NONE), 1)
-        type_layout.addWidget(_create_type_button(SamplingType.UNIDIR), 1)
-        type_layout.addWidget(_create_type_button(SamplingType.BIDIR), 1)
+        type_layout.addWidget(_create_type_button(GridType.NONE), 1)
+        type_layout.addWidget(_create_type_button(GridType.UNIDIR), 1)
+        type_layout.addWidget(_create_type_button(GridType.BIDIR), 1)
 
         # --- Grid visibility + divisions ---
         division_layout = QHBoxLayout()
@@ -730,9 +756,14 @@ class CTidyStudio(QMainWindow):
 
         # Container for controls affected by grid_show
         self._grid_controls_container = QWidget(container)
-        grid_controls_layout = QHBoxLayout(self._grid_controls_container)
+
+        grid_controls_layout = QVBoxLayout(self._grid_controls_container)
         grid_controls_layout.setContentsMargins(0, 0, 0, 0)
         grid_controls_layout.setSpacing(5)
+
+        # Grid divisions row
+        division_controls_layout = QHBoxLayout()
+        division_controls_layout.setSpacing(5)
 
         for direction in [
             CardinalDirection.X,
@@ -748,15 +779,99 @@ class CTidyStudio(QMainWindow):
                     self.app_state.sd.grid_divisions[direction.dir],
             )
 
-            increment_button = self._create_increment_control(
-                self._grid_controls_container,
-                binding,
+            division_controls_layout.addWidget(
+                self._create_increment_control(
+                    self._grid_controls_container,
+                    binding,
+                ),
+                1,
             )
 
-            grid_controls_layout.addWidget(increment_button, 1)
+        grid_controls_layout.addLayout(division_controls_layout)
+
+        # DOI section
+        grid_controls_layout.addSpacing(10)
+
+        label = QLabel("Domain of interest")
+        label.setAlignment(Qt.AlignCenter)
+        grid_controls_layout.addWidget(label)
+
+        grid_controls_layout.addSpacing(5)
+
+        grid_controls_layout.addWidget(
+            self._create_domain_of_interest_control(
+                self._grid_controls_container
+            )
+        )
 
         division_layout.addWidget(self._grid_controls_container, 4)
-        self.app_state.sd_changed.connect(self._update_grid_controls_enabled)
+
+        self.app_state.sd_changed.connect(
+            self._update_grid_controls_enabled
+        )
+
+        self._update_grid_controls_enabled()
+
+        return container
+
+    def _create_domain_of_interest_control(self, parent: QObject) -> QWidget:
+        signal = self.app_state.sd_changed
+
+        container = QWidget(parent)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        # --- Settings ---
+        settings_layout = QHBoxLayout()
+        settings_layout.setSpacing(5)
+        settings_layout.setAlignment(Qt.AlignLeft)
+        layout.addLayout(settings_layout)
+
+        label = QLabel("Settings")
+        label.setAlignment(Qt.AlignCenter)
+        label.setFixedWidth(self.OBJECT_FIXED_WIDTH)
+        settings_layout.addWidget(label)
+
+        doi_show_btn = self._create_show_button(
+            "DOI",
+            self.app_state.on_switch_doi_show_request,
+            DOI_COLOR,
+            self.app_state.doi_show,
+            None,
+        )
+        settings_layout.addWidget(doi_show_btn)
+
+        # Everything below here depends on doi_show
+        self._domain_of_interest_control = QWidget(container)
+        doi_layout = QHBoxLayout(self._domain_of_interest_control)
+        doi_layout.setContentsMargins(0, 0, 0, 0)
+        doi_layout.setSpacing(5)
+
+        full_domain_btn = QPushButton("Full domain")
+        full_domain_btn.setCheckable(True)
+        full_domain_btn.setChecked(self.app_state.sd.full_domain)
+        full_domain_btn.setCursor(Qt.PointingHandCursor)
+        full_domain_btn.setFocusPolicy(Qt.NoFocus)
+        full_domain_btn.toggled.connect(
+            self.app_state.on_switch_full_domain_request
+        )
+        doi_layout.addWidget(full_domain_btn)
+
+        auto_depth_btn = QPushButton("Auto depth")
+        auto_depth_btn.setCheckable(True)
+        auto_depth_btn.setChecked(self.app_state.sd.uni_auto_depth)
+        auto_depth_btn.setCursor(Qt.PointingHandCursor)
+        auto_depth_btn.setFocusPolicy(Qt.NoFocus)
+        auto_depth_btn.toggled.connect(
+            self.app_state.on_switch_auto_depth_request
+        )
+        doi_layout.addWidget(auto_depth_btn)
+
+        settings_layout.addWidget(self._domain_of_interest_control)
+
+        signal.connect(self._update_domain_of_interest_control)
+        self._update_domain_of_interest_control()
 
         return container
 
@@ -803,11 +918,7 @@ class CTidyStudio(QMainWindow):
 
         sd_controls_layout.addSpacing(5)
 
-        sd_controls_layout.addWidget(
-            self._create_grid_divisions_control(
-                self._sd_controls_container
-            )
-        )
+        sd_controls_layout.addWidget(self._create_grid_divisions_control(self._sd_controls_container))
 
         layout.addWidget(self._sd_controls_container)
 
@@ -824,6 +935,9 @@ class CTidyStudio(QMainWindow):
 
     def _update_grid_controls_enabled(self) -> None:
         self._grid_controls_container.setEnabled(self.app_state.grid_show)
+
+    def _update_domain_of_interest_control(self) -> None:
+        self._domain_of_interest_control.setEnabled(self.app_state.doi_show)
 
 class SliceView(QGraphicsView):
     BAR_WIDTH_RATIO: Final = 0.1
