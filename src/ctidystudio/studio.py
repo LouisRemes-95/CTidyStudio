@@ -514,7 +514,7 @@ class CTidyStudio(QMainWindow):
         control.increment_requested.connect(binding.on_increment)
         control.value_submitted.connect(binding.on_submit)
         
-        binding.refresh_signal.connect(lambda: control.refresh(binding.read_value(), binding.is_enabled()))
+        binding.refresh_signal.connect(lambda: control.refresh(binding.read_value()))
 
         return control
 
@@ -573,8 +573,7 @@ class CTidyStudio(QMainWindow):
             partial(self.app_state.on_move_slice_pos_request, direction),
             partial(self.app_state.on_set_slice_pos_request, direction),
             signal,
-            lambda: self.app_state.slice_pos.coord[direction.dir],
-            lambda: True
+            lambda: self.app_state.slice_pos.coord[direction.dir]
         )
 
         increment_button = self._create_increment_control(parent, binding)
@@ -629,8 +628,7 @@ class CTidyStudio(QMainWindow):
             partial(self.app_state.on_move_min_sd_request, direction),
             partial(self.app_state.on_set_min_sd_request, direction),
             signal,
-            lambda: self.app_state.sd.min_point.coord[direction.dir],
-            lambda: self.app_state.sd_show
+            lambda: self.app_state.sd.min_point.coord[direction.dir]
         )
         min_layout.addWidget(self._create_increment_control(parent, min_binding), 4)
 
@@ -639,35 +637,40 @@ class CTidyStudio(QMainWindow):
             partial(self.app_state.on_move_max_sd_request, direction),
             partial(self.app_state.on_set_max_sd_request, direction),
             signal,
-            lambda: self.app_state.sd.max_point.coord[direction.dir],
-            lambda: self.app_state.sd_show
+            lambda: self.app_state.sd.max_point.coord[direction.dir]
         )
         max_layout.addWidget(self._create_increment_control(parent, max_binding), 4)
 
         return layout
 
-    def _create_sampling_domain_controls(self, parent: QObject) -> QLayout:
-        layout = QVBoxLayout()
+    def _create_sampling_domain_controls(self, parent: QObject) -> QWidget:
+        container = QWidget(parent)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.X, parent))
+        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.X, container))
         layout.addSpacing(5)
-        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.Y, parent))
+        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.Y, container))
         layout.addSpacing(5)
-        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.Z, parent))
+        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.Z, container))
 
-        return layout
+        return container
 
-    def _create_grid_divisions_control(self, parent: QObject) -> QLayout:
+    def _create_grid_divisions_control(self, parent: QObject) -> QWidget:
         signal = self.app_state.sd_changed
 
-        layout = QVBoxLayout()
+        container = QWidget(parent)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
 
+        # --- Grid type ---
         type_layout = QHBoxLayout()
-        layout.setSpacing(5)
+        type_layout.setSpacing(5)
         layout.addLayout(type_layout)
 
-        type_group = QButtonGroup(parent)
+        type_group = QButtonGroup(container)
         type_group.setExclusive(True)
 
         def _create_type_button(type: SamplingType) -> QPushButton:
@@ -682,21 +685,25 @@ class CTidyStudio(QMainWindow):
                 }
             """)
 
-            btn.clicked.connect(partial(self.app_state.change_grid_type_request, type))
+            btn.clicked.connect(
+                partial(self.app_state.change_grid_type_request, type)
+            )
 
             type_group.addButton(btn)
 
             btn.setChecked(self.app_state.sd.type == type)
 
             def update_cursor(checked: bool) -> None:
-                btn.setCursor(Qt.ArrowCursor if checked else Qt.PointingHandCursor)
+                btn.setCursor(
+                    Qt.ArrowCursor if checked else Qt.PointingHandCursor
+                )
 
             btn.toggled.connect(update_cursor)
             update_cursor(btn.isChecked())
 
             return btn
 
-        label = QLabel(f"Type")
+        label = QLabel("Type")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setFixedWidth(self.OBJECT_FIXED_WIDTH)
 
@@ -704,36 +711,53 @@ class CTidyStudio(QMainWindow):
         type_layout.addWidget(_create_type_button(SamplingType.NONE), 1)
         type_layout.addWidget(_create_type_button(SamplingType.UNIDIR), 1)
         type_layout.addWidget(_create_type_button(SamplingType.BIDIR), 1)
-        
+
+        # --- Grid visibility + divisions ---
         division_layout = QHBoxLayout()
         division_layout.setSpacing(5)
         layout.addLayout(division_layout)
 
-        btn = self._create_show_button(
-            f"grid",
+        grid_show_btn = self._create_show_button(
+            "grid",
             self.app_state.on_switch_grid_show_request,
             GRID_COLOR,
             self.app_state.grid_show,
-            self.OBJECT_FIXED_WIDTH
-            )
+            self.OBJECT_FIXED_WIDTH,
+        )
 
-        division_layout.addWidget(btn, 1)
+        division_layout.addWidget(grid_show_btn, 1)
 
-        for direction in [CardinalDirection.X, CardinalDirection.Y, CardinalDirection.Z]:
+        # Container for controls affected by grid_show
+        self._grid_controls_container = QWidget(container)
+        grid_controls_layout = QHBoxLayout(self._grid_controls_container)
+        grid_controls_layout.setContentsMargins(0, 0, 0, 0)
+        grid_controls_layout.setSpacing(5)
+
+        for direction in [
+            CardinalDirection.X,
+            CardinalDirection.Y,
+            CardinalDirection.Z,
+        ]:
             binding = IncrementControlBinding(
                 "small",
                 partial(self.app_state.on_add_grid_divisions_request, direction),
                 partial(self.app_state.on_set_grid_divisions_request, direction),
                 signal,
-                lambda direction = direction: self.app_state.sd.grid_divisions[direction.dir],
-                lambda: self.app_state.grid_show
+                lambda direction=direction:
+                    self.app_state.sd.grid_divisions[direction.dir],
             )
 
-            increment_button = self._create_increment_control(parent, binding)
+            increment_button = self._create_increment_control(
+                self._grid_controls_container,
+                binding,
+            )
 
-            division_layout.addWidget(increment_button, 1.3333)
+            grid_controls_layout.addWidget(increment_button, 1)
 
-        return layout
+        division_layout.addWidget(self._grid_controls_container, 4)
+        self.app_state.sd_changed.connect(self._update_grid_controls_enabled)
+
+        return container
 
     def _create_sampling_domain_controls_panel(self, parent: QObject) -> QFrame:
         frame, layout = self._create_base_frame(parent)
@@ -756,19 +780,49 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(5)
 
-        layout.addLayout(self._create_sampling_domain_controls(frame))
+        # Container for everything depending on sd_show
+        self._sd_controls_container = QWidget(frame)
+        sd_controls_layout = QVBoxLayout(self._sd_controls_container)
+        sd_controls_layout.setContentsMargins(0, 0, 0, 0)
+        sd_controls_layout.setSpacing(0)
 
-        layout.addSpacing(10)
+        # Sampling-domain bounds
+        sd_controls_layout.addWidget(
+            self._create_sampling_domain_controls(
+                self._sd_controls_container
+            )
+        )
 
+        sd_controls_layout.addSpacing(10)
+
+        # Grid section
         label = QLabel("Grid divisions")
         label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(label)
+        sd_controls_layout.addWidget(label)
 
-        layout.addSpacing(5)
+        sd_controls_layout.addSpacing(5)
 
-        layout.addLayout(self._create_grid_divisions_control(frame))
+        sd_controls_layout.addWidget(
+            self._create_grid_divisions_control(
+                self._sd_controls_container
+            )
+        )
+
+        layout.addWidget(self._sd_controls_container)
+
+        self.app_state.sd_changed.connect(
+            self._update_sampling_domain_controls_enabled
+        )
+
+        self._update_sampling_domain_controls_enabled()
 
         return frame
+
+    def _update_sampling_domain_controls_enabled(self) -> None:
+        self._sd_controls_container.setEnabled(self.app_state.sd_show)
+
+    def _update_grid_controls_enabled(self) -> None:
+        self._grid_controls_container.setEnabled(self.app_state.grid_show)
 
 class SliceView(QGraphicsView):
     BAR_WIDTH_RATIO: Final = 0.1
@@ -1220,7 +1274,6 @@ class IncrementControlBinding:
     on_submit: Callable[[int], None]
     refresh_signal: Signal
     read_value: Callable[[], int]
-    is_enabled: Callable[[], bool]
 
 
 class IncrementButton(QPushButton):
@@ -1286,9 +1339,8 @@ class IncrementControl(QWidget):
 
         self.value_submitted.emit(int(text))
 
-    def refresh(self, value: int, enable: bool) -> None:
+    def refresh(self, value: int) -> None:
         self._editable_display.setText(str(value))
-        self.setEnabled(enable)
 
 
 class SmallIncrementControl(QWidget):
@@ -1324,9 +1376,8 @@ class SmallIncrementControl(QWidget):
 
         self.value_submitted.emit(int(text))
 
-    def refresh(self, value: int, enable: bool) -> None:
+    def refresh(self, value: int) -> None:
         self._editable_display.setText(str(value))
-        self.setEnabled(enable)
 
 
 def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: float) -> int:
