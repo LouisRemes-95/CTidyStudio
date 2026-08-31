@@ -504,12 +504,7 @@ class CTidyStudio(QMainWindow):
     
     @staticmethod
     def _create_increment_control(parent: QObject, binding: "IncrementControlBinding") -> "IncrementControl":
-        if binding.type == "small":
-            control = SmallIncrementControl(parent)
-        elif binding.type == "normal":  
-            control = IncrementControl(parent)
-        else :
-            raise ValueError(f"Unknown increment control type: {binding.type!r}")
+        control = IncrementControl(binding.type, parent)
 
         control.increment_requested.connect(binding.on_increment)
         control.value_submitted.connect(binding.on_submit)
@@ -1302,79 +1297,60 @@ class IncrementControl(QWidget):
     increment_requested = Signal(int)
     value_submitted = Signal(int)
 
-    def __init__(self, parent: QObject = None) -> None:
+    def __init__(
+        self,
+        type: Literal["small", "normal"],
+        parent: QObject = None,
+    ) -> None:
         super().__init__(parent)
 
-        self._build_dependencies()
-
-    def _build_dependencies(self) -> None:
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
 
-        self._decrease_100_btn = IncrementButton("---", -100, self.increment_requested, parent = self)
-        self._decrease_10_btn = IncrementButton("--", -10, self.increment_requested, parent = self)
-        self._decrease_1_btn = IncrementButton("-", -1, self.increment_requested, parent = self)
+        if type == "normal":
+            increments = [
+                ("---", -100, 3),
+                ("--",  -10, 2),
+                ("-",    -1, 1),
+                ("+",     1, 1),
+                ("++",   10, 2),
+                ("+++", 100, 3),
+            ]
+        elif type == "small":
+            increments = [
+                ("-", -1, 1),
+                ("+",  1, 1),
+            ]
+        else:
+            raise ValueError(f"Unknown increment control type: {type!r}")
 
-        self._editable_display = QLineEdit(parent = self)
+        middle = len(increments) // 2
+
+        for text, increment, stretch in increments[:middle]:
+            layout.addWidget(
+                IncrementButton(text, increment, self.increment_requested, self),
+                stretch,
+            )
+
+        self._editable_display = QLineEdit(self)
         self._editable_display.setAlignment(Qt.AlignCenter)
-        self._editable_display.returnPressed.connect(self._on_value_submitted)
-
-        self._increase_1_btn = IncrementButton("+", 1, self.increment_requested, parent = self)
-        self._increase_10_btn = IncrementButton("++", 10, self.increment_requested, parent = self)
-        self._increase_100_btn = IncrementButton("+++", 100, self.increment_requested, parent = self)
-
-        layout.addWidget(self._decrease_100_btn, 3)
-        layout.addWidget(self._decrease_10_btn, 2)
-        layout.addWidget(self._decrease_1_btn, 1)
+        self._editable_display.returnPressed.connect(
+            self._on_value_submitted
+        )
         layout.addWidget(self._editable_display, 4)
-        layout.addWidget(self._increase_1_btn, 1)
-        layout.addWidget(self._increase_10_btn, 2)
-        layout.addWidget(self._increase_100_btn, 3)
+
+        for text, increment, stretch in increments[middle:]:
+            layout.addWidget(
+                IncrementButton(text, increment, self.increment_requested, self),
+                stretch,
+            )
 
     def _on_value_submitted(self) -> None:
         text = self._editable_display.text().strip()
-        if not text:
-            return
 
-        self.value_submitted.emit(int(text))
-
-    def refresh(self, value: int) -> None:
-        self._editable_display.setText(str(value))
-
-
-class SmallIncrementControl(QWidget):
-    increment_requested = Signal(int)
-    value_submitted = Signal(int)
-
-    def __init__(self, parent: QObject = None) -> None:
-        super().__init__(parent)
-
-        self._build_dependencies()
-
-    def _build_dependencies(self) -> None:
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
-
-        self._decrease_1_btn = IncrementButton("-", -1, self.increment_requested, parent = self)
-
-        self._editable_display = QLineEdit(parent = self)
-        self._editable_display.setAlignment(Qt.AlignCenter)
-        self._editable_display.returnPressed.connect(self._on_value_submitted)
-
-        self._increase_1_btn = IncrementButton("+", 1, self.increment_requested, parent = self)
-
-        layout.addWidget(self._decrease_1_btn, 1)
-        layout.addWidget(self._editable_display, 4)
-        layout.addWidget(self._increase_1_btn, 1)
-
-    def _on_value_submitted(self) -> None:
-        text = self._editable_display.text().strip()
-        if not text:
-            return
-
-        self.value_submitted.emit(int(text))
+        if text:
+            self.value_submitted.emit(int(text))
 
     def refresh(self, value: int) -> None:
         self._editable_display.setText(str(value))
