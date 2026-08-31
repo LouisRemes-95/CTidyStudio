@@ -514,7 +514,7 @@ class CTidyStudio(QMainWindow):
         control.increment_requested.connect(binding.on_increment)
         control.value_submitted.connect(binding.on_submit)
         
-        binding.refresh_signal.connect(lambda: control.set_value(binding.read_value()))
+        binding.refresh_signal.connect(lambda: control.refresh(binding.read_value(), binding.is_enabled()))
 
         return control
 
@@ -573,7 +573,8 @@ class CTidyStudio(QMainWindow):
             partial(self.app_state.on_move_slice_pos_request, direction),
             partial(self.app_state.on_set_slice_pos_request, direction),
             signal,
-            lambda: self.app_state.slice_pos.coord[direction.dir]
+            lambda: self.app_state.slice_pos.coord[direction.dir],
+            lambda: True
         )
 
         increment_button = self._create_increment_control(parent, binding)
@@ -628,7 +629,8 @@ class CTidyStudio(QMainWindow):
             partial(self.app_state.on_move_min_sd_request, direction),
             partial(self.app_state.on_set_min_sd_request, direction),
             signal,
-            lambda: self.app_state.sd.min_point.coord[direction.dir]
+            lambda: self.app_state.sd.min_point.coord[direction.dir],
+            lambda: self.app_state.sd_show
         )
         min_layout.addWidget(self._create_increment_control(parent, min_binding), 4)
 
@@ -637,7 +639,8 @@ class CTidyStudio(QMainWindow):
             partial(self.app_state.on_move_max_sd_request, direction),
             partial(self.app_state.on_set_max_sd_request, direction),
             signal,
-            lambda: self.app_state.sd.max_point.coord[direction.dir]
+            lambda: self.app_state.sd.max_point.coord[direction.dir],
+            lambda: self.app_state.sd_show
         )
         max_layout.addWidget(self._create_increment_control(parent, max_binding), 4)
 
@@ -722,7 +725,8 @@ class CTidyStudio(QMainWindow):
                 partial(self.app_state.on_add_grid_divisions_request, direction),
                 partial(self.app_state.on_set_grid_divisions_request, direction),
                 signal,
-                lambda direction = direction: self.app_state.sd.grid_divisions[direction.dir]
+                lambda direction = direction: self.app_state.sd.grid_divisions[direction.dir],
+                lambda: self.app_state.grid_show
             )
 
             increment_button = self._create_increment_control(parent, binding)
@@ -1216,6 +1220,7 @@ class IncrementControlBinding:
     on_submit: Callable[[int], None]
     refresh_signal: Signal
     read_value: Callable[[], int]
+    is_enabled: Callable[[], bool]
 
 
 class IncrementButton(QPushButton):
@@ -1281,8 +1286,9 @@ class IncrementControl(QWidget):
 
         self.value_submitted.emit(int(text))
 
-    def set_value(self, value: int) -> None:
+    def refresh(self, value: int, enable: bool) -> None:
         self._editable_display.setText(str(value))
+        self.setEnabled(enable)
 
 
 class SmallIncrementControl(QWidget):
@@ -1318,8 +1324,9 @@ class SmallIncrementControl(QWidget):
 
         self.value_submitted.emit(int(text))
 
-    def set_value(self, value: int) -> None:
+    def refresh(self, value: int, enable: bool) -> None:
         self._editable_display.setText(str(value))
+        self.setEnabled(enable)
 
 
 def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: float) -> int:
