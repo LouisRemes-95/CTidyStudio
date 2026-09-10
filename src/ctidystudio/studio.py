@@ -528,8 +528,8 @@ class CTidyStudio(QMainWindow):
         """)
 
         layout = QVBoxLayout(frame)
-        layout.setSpacing(0)
         layout.setContentsMargins(10, 6, 10, 10)
+        layout.setSpacing(0)
 
         return frame, layout
     
@@ -632,8 +632,7 @@ class CTidyStudio(QMainWindow):
     def _build_domain_control_panel(self, parent: QObject) -> QFrame:
         frame, layout = self._build_base_frame(parent)
 
-        self._sd_controls_container = self._build_sampling_domain_controls(frame)
-        layout.addWidget(self._sd_controls_container)
+        layout.addWidget(self._build_sampling_domain_widget(frame))
 
         layout.addSpacing(10)
 
@@ -642,28 +641,15 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(10)
 
+        self._domain_of_interest_controls = self._build_domain_of_interest_controls(frame)
+        layout.addWidget(self._domain_of_interest_controls)
 
-
-        # # Grid section
-        # label = QLabel("Grid divisions")
-        # label.setAlignment(Qt.AlignCenter)
-        # sd_controls_layout.addWidget(label)
-
-        # sd_controls_layout.addSpacing(5)
-
-        # sd_controls_layout.addWidget(self._create_grid_divisions_control(self._sd_controls_container))
-
-        # layout.addWidget(self._sd_controls_container)
-
-        # self.app_state.sd_changed.connect(
-        #     self._update_sampling_domain_controls_enabled
-        # )
-
-        # self._update_sampling_domain_controls_enabled()
+        self.app_state.sd_changed.connect(self._update_domain_control_panel)
+        self._update_domain_control_panel()
 
         return frame
     
-    def _build_sampling_domain_controls(self, parent: QObject) -> QWidget:
+    def _build_sampling_domain_widget(self, parent: QObject) -> QWidget:
         container = QWidget(parent)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -686,6 +672,16 @@ class CTidyStudio(QMainWindow):
         layout.addWidget(btn)
 
         layout.addSpacing(5)
+        self._sd_controls_container = self._build_sampling_domain_controls_container(container)
+        layout.addWidget(self._sd_controls_container)
+
+        return container
+
+    def _build_sampling_domain_controls_container(self, parent: QObject) -> QWidget:
+        container = QWidget(parent)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         layout.addWidget(self._build_sampling_domain_control(CardinalDirection.X, container))
         layout.addSpacing(5)
@@ -693,15 +689,15 @@ class CTidyStudio(QMainWindow):
         layout.addSpacing(5)
         layout.addWidget(self._build_sampling_domain_control(CardinalDirection.Z, container))
 
-        return container
+        return container 
     
     def _build_sampling_domain_control(self, direction: CardinalDirection, parent: QObject) -> QWidget:
         signal = self.app_state.sd_changed
 
         container = QWidget(parent)
         layout = QVBoxLayout(container)
-        layout.setSpacing(2)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
 
         min_layout = QHBoxLayout()
         min_layout.setSpacing(5)
@@ -759,24 +755,6 @@ class CTidyStudio(QMainWindow):
         self._grid_division_control = self._build_grid_division_control(container)
         layout.addWidget(self._grid_division_control)
 
-
-        # # DOI section
-        # grid_controls_layout.addSpacing(10)
-
-        # label = QLabel("Domain of interest")
-        # label.setAlignment(Qt.AlignCenter)
-        # grid_controls_layout.addWidget(label)
-
-        # grid_controls_layout.addSpacing(5)
-
-        # division_layout.addWidget(self._grid_controls_container, 4)
-
-        # self.app_state.sd_changed.connect(
-        #     self._update_grid_controls_enabled
-        # )
-
-        # self._update_grid_controls_enabled()
-
         return container
 
     def _build_grid_type_control(self, parent: QObject) -> QWidget:
@@ -832,8 +810,8 @@ class CTidyStudio(QMainWindow):
     def _build_grid_division_control(self, parent: object) -> QWidget:
         container = QWidget(parent)
         layout = QHBoxLayout(container)
-        layout.setSpacing(5)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
 
         grid_show_btn = self._build_show_button(
             "grid",
@@ -859,24 +837,34 @@ class CTidyStudio(QMainWindow):
 
         return container
 
-    def _build_domain_of_interest_control(self, parent: QObject) -> QWidget:
-        signal = self.app_state.sd_changed
-
+    def _build_domain_of_interest_controls(self, parent: QObject) -> QWidget:
         container = QWidget(parent)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
 
-        # --- Settings ---
-        settings_layout = QHBoxLayout()
-        settings_layout.setSpacing(5)
-        settings_layout.setAlignment(Qt.AlignLeft)
-        layout.addLayout(settings_layout)
+        label = QLabel("Domain of interest")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+
+        layout.addSpacing(5)
+
+        self._doi_settings_control = self._build_doi_settings_control(container)
+        layout.addWidget(self._doi_settings_control)
+
+        return container
+
+    def _build_doi_settings_control(self, parent: QObject) -> QWidget:
+        container = QWidget(parent)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+        layout.setAlignment(Qt.AlignLeft)
 
         label = QLabel("Settings")
         label.setAlignment(Qt.AlignCenter)
         label.setFixedWidth(self.OBJECT_FIXED_WIDTH)
-        settings_layout.addWidget(label)
+        layout.addWidget(label)
 
         doi_show_btn = self._build_show_button(
             "DOI",
@@ -885,13 +873,7 @@ class CTidyStudio(QMainWindow):
             self.app_state.doi_show,
             None,
         )
-        settings_layout.addWidget(doi_show_btn)
-
-        # Everything below here depends on doi_show
-        self._domain_of_interest_control = QWidget(container)
-        doi_layout = QHBoxLayout(self._domain_of_interest_control)
-        doi_layout.setContentsMargins(0, 0, 0, 0)
-        doi_layout.setSpacing(5)
+        layout.addWidget(doi_show_btn)
 
         full_domain_btn = QPushButton("Full domain")
         full_domain_btn.setCheckable(True)
@@ -901,7 +883,7 @@ class CTidyStudio(QMainWindow):
         full_domain_btn.toggled.connect(
             self.app_state.on_switch_full_domain_request
         )
-        doi_layout.addWidget(full_domain_btn)
+        layout.addWidget(full_domain_btn)
 
         auto_depth_btn = QPushButton("Auto depth")
         auto_depth_btn.setCheckable(True)
@@ -911,16 +893,11 @@ class CTidyStudio(QMainWindow):
         auto_depth_btn.toggled.connect(
             self.app_state.on_switch_auto_depth_request
         )
-        doi_layout.addWidget(auto_depth_btn)
-
-        settings_layout.addWidget(self._domain_of_interest_control)
-
-        signal.connect(self._update_domain_of_interest_control)
-        self._update_domain_of_interest_control()
+        layout.addWidget(auto_depth_btn)
 
         return container
 
-    def _update_sampling_domain_controls_enabled(self) -> None:
+    def _update_domain_control_panel(self) -> None:
         self._sd_controls_container.setEnabled(self.app_state.sd_show)
 
     def _update_grid_controls_enabled(self) -> None:
