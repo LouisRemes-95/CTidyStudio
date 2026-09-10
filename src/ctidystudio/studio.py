@@ -428,13 +428,13 @@ class CTidyStudio(QMainWindow):
         main_layout.addWidget(right_container, 1)
 
     def _build_scroll_area(self) -> QScrollArea:
-        scroll_container = QScrollArea()
-        scroll_container.setFixedWidth(470)
-        scroll_container.setWidgetResizable(True)
-        scroll_container.setFrameShape(QFrame.NoFrame)
-        scroll_container.setObjectName("rightScrollArea")
+        container = QScrollArea()
+        container.setFixedWidth(470)
+        container.setWidgetResizable(True)
+        container.setFrameShape(QFrame.NoFrame)
+        container.setObjectName("rightScrollArea")
 
-        scroll_container.setStyleSheet("""
+        container.setStyleSheet("""
         QScrollArea#rightScrollArea {
             background: #2b2b2b;
             border: 1px solid #696969;
@@ -480,19 +480,19 @@ class CTidyStudio(QMainWindow):
         """)
 
         # Inner scroll content widget
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setAlignment(Qt.AlignTop)
-        scroll_layout.setContentsMargins(10, 10, 10, 10)
-        scroll_layout.setSpacing(10)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setAlignment(Qt.AlignTop)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
 
-        scroll_layout.addWidget(self._create_apply_rotation_button(scroll_content))
-        scroll_layout.addWidget(self._create_slice_pos_controls(scroll_content))
-        scroll_layout.addWidget(self._create_sampling_domain_controls_panel(scroll_content))
+        layout.addWidget(self._create_apply_rotation_button(content))
+        layout.addWidget(self._create_slice_pos_controls(content))
+        layout.addWidget(self._create_domain_control_panel(content))
         
-        scroll_container.setWidget(scroll_content)
+        container.setWidget(content)
 
-        return scroll_container
+        return container
 
     def _create_apply_rotation_button(self, parent: QObject) -> QPushButton:
         btn = QPushButton(parent)
@@ -629,11 +629,73 @@ class CTidyStudio(QMainWindow):
 
         return container
 
-    def _create_sampling_domain_control(self, direction: CardinalDirection, parent: QObject) -> QLayout:
+    def _create_domain_control_panel(self, parent: QObject) -> QFrame:
+        frame, layout = self._create_base_frame(parent)
+
+        # Sampling-domain bounds
+        self._sd_controls_container = self._create_sampling_domain_controls(frame)
+        layout.addWidget(self._sd_controls_container)
+
+        layout.addSpacing(10)
+
+        # # Grid section
+        # label = QLabel("Grid divisions")
+        # label.setAlignment(Qt.AlignCenter)
+        # sd_controls_layout.addWidget(label)
+
+        # sd_controls_layout.addSpacing(5)
+
+        # sd_controls_layout.addWidget(self._create_grid_divisions_control(self._sd_controls_container))
+
+        # layout.addWidget(self._sd_controls_container)
+
+        # self.app_state.sd_changed.connect(
+        #     self._update_sampling_domain_controls_enabled
+        # )
+
+        # self._update_sampling_domain_controls_enabled()
+
+        return frame
+    
+    def _create_sampling_domain_controls(self, parent: QObject) -> QWidget:
+        container = QWidget(parent)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        label = QLabel("Sampling domain controls")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+
+        layout.addSpacing(5)
+
+        btn = self._create_show_button(
+            "SD",
+            self.app_state.on_switch_sd_show_request,
+            SD_COLOR,
+            self.app_state.sd_show,
+            self.OBJECT_FIXED_WIDTH
+        )
+
+        layout.addWidget(btn)
+
+        layout.addSpacing(5)
+
+        layout.addWidget(self._create_sampling_domain_control(CardinalDirection.X, container))
+        layout.addSpacing(5)
+        layout.addWidget(self._create_sampling_domain_control(CardinalDirection.Y, container))
+        layout.addSpacing(5)
+        layout.addWidget(self._create_sampling_domain_control(CardinalDirection.Z, container))
+
+        return container
+    
+    def _create_sampling_domain_control(self, direction: CardinalDirection, parent: QObject) -> QWidget:
         signal = self.app_state.sd_changed
 
-        layout = QVBoxLayout()
+        container = QWidget(parent)
+        layout = QVBoxLayout(container)
         layout.setSpacing(2)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         min_layout = QHBoxLayout()
         min_layout.setSpacing(5)
@@ -659,7 +721,7 @@ class CTidyStudio(QMainWindow):
             signal,
             lambda: self.app_state.sd.min_point.coord[direction.dir]
         )
-        min_layout.addWidget(self._create_increment_control(parent, min_binding), 4)
+        min_layout.addWidget(self._create_increment_control(container, min_binding), 4)
 
         max_binding = IncrementControlBinding(
             "normal",
@@ -668,21 +730,7 @@ class CTidyStudio(QMainWindow):
             signal,
             lambda: self.app_state.sd.max_point.coord[direction.dir]
         )
-        max_layout.addWidget(self._create_increment_control(parent, max_binding), 4)
-
-        return layout
-
-    def _create_sampling_domain_controls(self, parent: QObject) -> QWidget:
-        container = QWidget(parent)
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.X, container))
-        layout.addSpacing(5)
-        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.Y, container))
-        layout.addSpacing(5)
-        layout.addLayout(self._create_sampling_domain_control(CardinalDirection.Z, container))
+        max_layout.addWidget(self._create_increment_control(container, max_binding), 4)
 
         return container
 
@@ -876,61 +924,6 @@ class CTidyStudio(QMainWindow):
         self._update_domain_of_interest_control()
 
         return container
-
-    def _create_sampling_domain_controls_panel(self, parent: QObject) -> QFrame:
-        frame, layout = self._create_base_frame(parent)
-
-        label = QLabel("Sampling domain controls")
-        label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(label)
-
-        layout.addSpacing(5)
-
-        btn = self._create_show_button(
-            "SD",
-            self.app_state.on_switch_sd_show_request,
-            SD_COLOR,
-            self.app_state.sd_show,
-            self.OBJECT_FIXED_WIDTH
-        )
-
-        layout.addWidget(btn)
-
-        layout.addSpacing(5)
-
-        # Container for everything depending on sd_show
-        self._sd_controls_container = QWidget(frame)
-        sd_controls_layout = QVBoxLayout(self._sd_controls_container)
-        sd_controls_layout.setContentsMargins(0, 0, 0, 0)
-        sd_controls_layout.setSpacing(0)
-
-        # Sampling-domain bounds
-        sd_controls_layout.addWidget(
-            self._create_sampling_domain_controls(
-                self._sd_controls_container
-            )
-        )
-
-        sd_controls_layout.addSpacing(10)
-
-        # Grid section
-        label = QLabel("Grid divisions")
-        label.setAlignment(Qt.AlignCenter)
-        sd_controls_layout.addWidget(label)
-
-        sd_controls_layout.addSpacing(5)
-
-        sd_controls_layout.addWidget(self._create_grid_divisions_control(self._sd_controls_container))
-
-        layout.addWidget(self._sd_controls_container)
-
-        self.app_state.sd_changed.connect(
-            self._update_sampling_domain_controls_enabled
-        )
-
-        self._update_sampling_domain_controls_enabled()
-
-        return frame
 
     def _update_sampling_domain_controls_enabled(self) -> None:
         self._sd_controls_container.setEnabled(self.app_state.sd_show)
