@@ -426,6 +426,16 @@ class SamplingDomain(Domain):
 
         np.maximum(self.grid_divisions, 0, out=self.grid_divisions)
 
+    def add_doi_size(self, direction: CardinalDirection, value: int) -> None:
+        self.doi_size[direction.dir] += value
+
+        np.maximum(self.doi_size, 1, out=self.doi_size)
+
+    def set_doi_size(self, direction: CardinalDirection, value: int) -> None:
+        self.doi_size[direction.dir] = value
+
+        np.maximum(self.doi_size, 1, out=self.doi_size)
+
     def grid_lines_by_extremities(self) -> list[tuple[IntPoint, IntPoint]]:
         x_linespacing, y_linespacing, z_linespacing = (np.linspace(min_coord, max_coord, divisions)
             for min_coord, max_coord, divisions in zip(self.min_point.coord, self.max_point.coord, self.grid_divisions + 2)

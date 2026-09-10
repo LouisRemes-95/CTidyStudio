@@ -115,6 +115,16 @@ STYTE_SHEET = """
         color: #888;
         border-color: #444;
     }
+
+    QScrollArea {
+        background: #2b2b2b;
+        border: 1px solid #696969;
+        border-radius: 26px;
+    }
+
+    QScrollArea > QWidget > QWidget {
+        background: transparent;
+    }
 """
 
 SD_COLOR = QColor("red")
@@ -351,6 +361,15 @@ class AppState(QObject):
 
         self.sd_changed.emit()
 
+    def on_add_doi_size_request(self, direction: CardinalDirection, value: int):
+        self.sd.add_doi_size(direction, value)
+
+        self.sd_changed.emit()
+
+    def on_set_doi_size_request(self, direction: CardinalDirection, value: int):
+        self.sd.set_doi_size(direction, value)
+
+        self.sd_changed.emit()
 
 class Mode(str, Enum):
     RESET = "reset"
@@ -432,54 +451,8 @@ class CTidyStudio(QMainWindow):
         container.setFixedWidth(470)
         container.setWidgetResizable(True)
         container.setFrameShape(QFrame.NoFrame)
-        container.setObjectName("rightScrollArea")
+        container.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        container.setStyleSheet("""
-        QScrollArea#rightScrollArea {
-            background: #2b2b2b;
-            border: 1px solid #696969;
-            border-radius: 26px;
-        }
-
-        QScrollArea#rightScrollArea > QWidget > QWidget {
-            background: transparent;
-        }
-
-        /* Vertical scrollbar */
-        QScrollBar:vertical {
-            background: transparent;
-            width: 10px;
-            border: none;
-        }
-
-        QScrollBar::handle:vertical {
-            background-color: #3a3a3a;
-            border: 1px solid #666;
-            min-height: 10px;
-            margin: 15px 2px 15px 2px
-        }
-
-        QScrollBar::handle:vertical:hover {
-            background: #4a6fa5;
-            border: 1px solid #7aa2d6;
-        }
-                                      
-        QScrollBar::handle:vertical:pressed {
-            background-color: #34527a;
-        }
-
-        QScrollBar::add-line:vertical,
-        QScrollBar::sub-line:vertical {
-            height: 0px;
-        }
-
-        QScrollBar::add-page:vertical,
-        QScrollBar::sub-page:vertical {
-            background: transparent;
-        }
-        """)
-
-        # Inner scroll content widget
         content = QWidget()
         layout = QVBoxLayout(content)
         layout.setAlignment(Qt.AlignTop)
@@ -641,7 +614,7 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(10)
 
-        self._doi_controls_container = self._build_domain_of_interest_controls(frame)
+        self._doi_controls_container = self._build_domain_of_interest_widget(frame)
         layout.addWidget(self._doi_controls_container)
 
         self.app_state.sd_changed.connect(self._update_domain_control_panel)
@@ -848,7 +821,7 @@ class CTidyStudio(QMainWindow):
 
         return container
 
-    def _build_domain_of_interest_controls(self, parent: QObject) -> QWidget:
+    def _build_domain_of_interest_widget(self, parent: QObject) -> QWidget:
         container = QWidget(parent)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -860,51 +833,112 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(5)
 
-        self._doi_settings_control = self._build_doi_settings_control(container)
-        layout.addWidget(self._doi_settings_control)
+        layout.addWidget(self._build_doi_settings_show_container(container))
+
+        layout.addSpacing(5)
+
+        self._doi_size_container = self._build_doi_size_container(container)
+        layout.addWidget(self._doi_size_container)
 
         return container
 
-    def _build_doi_settings_control(self, parent: QObject) -> QWidget:
+    def _build_doi_settings_show_container(self, parent: QObject) -> QWidget:
         container = QWidget(parent)
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
-        layout.setAlignment(Qt.AlignLeft)
-
-        label = QLabel("Settings")
-        label.setAlignment(Qt.AlignCenter)
-        label.setFixedWidth(self.OBJECT_FIXED_WIDTH)
-        layout.addWidget(label)
 
         doi_show_btn = self._build_show_button(
             "DOI",
             self.app_state.on_switch_doi_show_request,
             DOI_COLOR,
             self.app_state.doi_show,
-            None,
+            self.OBJECT_FIXED_WIDTH,
         )
         layout.addWidget(doi_show_btn)
 
-        full_domain_btn = QPushButton("Full domain")
-        full_domain_btn.setCheckable(True)
-        full_domain_btn.setChecked(self.app_state.sd.full_domain)
-        full_domain_btn.setCursor(Qt.PointingHandCursor)
-        full_domain_btn.setFocusPolicy(Qt.NoFocus)
-        full_domain_btn.toggled.connect(
-            self.app_state.on_switch_full_domain_request
-        )
-        layout.addWidget(full_domain_btn)
+        self._doi_settings_full_container = self._build_doi_settings_full_container(container)
+        layout.addWidget(self._doi_settings_full_container)
 
-        auto_depth_btn = QPushButton("Auto depth")
-        auto_depth_btn.setCheckable(True)
-        auto_depth_btn.setChecked(self.app_state.sd.uni_auto_depth)
-        auto_depth_btn.setCursor(Qt.PointingHandCursor)
-        auto_depth_btn.setFocusPolicy(Qt.NoFocus)
-        auto_depth_btn.toggled.connect(
-            self.app_state.on_switch_auto_depth_request
+        return container
+
+    def _build_doi_settings_full_container(self, parent: QObject) -> QWidget:
+        container = QWidget(parent)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        btn = QPushButton("Full domain")
+        btn.setCheckable(True)
+        btn.setChecked(self.app_state.sd.full_domain)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setFocusPolicy(Qt.NoFocus)
+        btn.toggled.connect(self.app_state.on_switch_full_domain_request)
+        layout.addWidget(btn, 1)
+
+        self._doi_settings_auto_container = self._build_doi_settings_auto_container(container)
+        layout.addWidget(self._doi_settings_auto_container, 2)
+
+        return container
+
+    def _build_doi_settings_auto_container(self, parent: QObject) -> QWidget:
+        container = QWidget(parent)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        btn = QPushButton("Auto depth")
+        btn.setCheckable(True)
+        btn.setChecked(self.app_state.sd.uni_auto_depth)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setFocusPolicy(Qt.NoFocus)
+        btn.toggled.connect(self.app_state.on_switch_auto_depth_request)
+        layout.addWidget(btn, 1)
+
+        layout.addWidget(QWidget(container), 1)
+
+        return container
+
+    def _build_doi_size_container(self, parent: QObject) -> QWidget:
+        container = QWidget(parent)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        label = QLabel("Size")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setFixedWidth(self.OBJECT_FIXED_WIDTH)
+        layout.addWidget(label)
+
+        binding_x = IncrementControlBinding(
+            "small",
+            partial(self.app_state.on_add_doi_size_request, CardinalDirection.X),
+            partial(self.app_state.on_set_doi_size_request, CardinalDirection.X),
+            self.app_state.sd_changed,
+            lambda: self.app_state.sd.doi_size[CardinalDirection.X.dir],
         )
-        layout.addWidget(auto_depth_btn)
+
+        layout.addWidget(self._build_increment_control(container, binding_x), 1)
+
+        binding_y = IncrementControlBinding(
+            "small",
+            partial(self.app_state.on_add_doi_size_request, CardinalDirection.Y),
+            partial(self.app_state.on_set_doi_size_request, CardinalDirection.Y),
+            self.app_state.sd_changed,
+            lambda: self.app_state.sd.doi_size[CardinalDirection.Y.dir],
+        )
+
+        layout.addWidget(self._build_increment_control(container, binding_y), 1)
+
+        binding_z = IncrementControlBinding(
+            "small",
+            partial(self.app_state.on_add_doi_size_request, CardinalDirection.Z),
+            partial(self.app_state.on_set_doi_size_request, CardinalDirection.Z),
+            self.app_state.sd_changed,
+            lambda: self.app_state.sd.doi_size[CardinalDirection.Z.dir],
+        )
+
+        layout.addWidget(self._build_increment_control(container, binding_z), 1)
 
         return container
 
@@ -916,11 +950,9 @@ class CTidyStudio(QMainWindow):
         self._grid_division_control_widget.setEnabled(self.app_state.sd.grid_type != GridType.NONE)
         self._grid_division_control_container.setEnabled(self.app_state.grid_show)
 
-    # def _update_grid_controls_enabled(self) -> None:
-    #     self._grid_controls_container.setEnabled(self.app_state.grid_show)
-
-    # def _update_domain_of_interest_control(self) -> None:
-    #     self._domain_of_interest_control.setEnabled(self.app_state.doi_show)
+        self._doi_controls_container.setEnabled(self.app_state.sd.grid_type != GridType.NONE)
+        self._doi_settings_full_container.setEnabled(self.app_state.doi_show)
+        self._doi_settings_auto_container.setEnabled(not self.app_state.sd.full_domain)
 
 class SliceView(QGraphicsView):
     BAR_WIDTH_RATIO: Final = 0.1
