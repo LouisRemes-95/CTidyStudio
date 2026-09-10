@@ -636,13 +636,13 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(10)
 
-        self._grid_controls_container = self._build_grid_controls(frame)
+        self._grid_controls_container = self._build_grid_widget(frame)
         layout.addWidget(self._grid_controls_container)
 
         layout.addSpacing(10)
 
-        self._domain_of_interest_controls = self._build_domain_of_interest_controls(frame)
-        layout.addWidget(self._domain_of_interest_controls)
+        self._doi_controls_container = self._build_domain_of_interest_controls(frame)
+        layout.addWidget(self._doi_controls_container)
 
         self.app_state.sd_changed.connect(self._update_domain_control_panel)
         self._update_domain_control_panel()
@@ -736,7 +736,7 @@ class CTidyStudio(QMainWindow):
 
         return container
 
-    def _build_grid_controls(self, parent: QObject) -> QWidget:
+    def _build_grid_widget(self, parent: QObject) -> QWidget:
 
         container = QWidget(parent)
         layout = QVBoxLayout(container)
@@ -749,15 +749,15 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(5)
 
-        self._grid_type_control = self._build_grid_type_control(container)
-        layout.addWidget(self._grid_type_control)
+        self._grid_type_control_container = self._build_grid_type_control_container(container)
+        layout.addWidget(self._grid_type_control_container)
         
-        self._grid_division_control = self._build_grid_division_control(container)
-        layout.addWidget(self._grid_division_control)
+        self._grid_division_control_widget = self._build_grid_division_control_widget(container)
+        layout.addWidget(self._grid_division_control_widget)
 
         return container
 
-    def _build_grid_type_control(self, parent: QObject) -> QWidget:
+    def _build_grid_type_control_container(self, parent: QObject) -> QWidget:
         container = QWidget(parent)
         layout = QHBoxLayout(container)
         layout.setSpacing(5)
@@ -807,7 +807,7 @@ class CTidyStudio(QMainWindow):
 
         return container
 
-    def _build_grid_division_control(self, parent: object) -> QWidget:
+    def _build_grid_division_control_widget(self, parent: object) -> QWidget:
         container = QWidget(parent)
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -822,6 +822,17 @@ class CTidyStudio(QMainWindow):
         )
 
         layout.addWidget(grid_show_btn, 1)
+
+        self._grid_division_control_container = self._build_grid_division_control_container(container)
+        layout.addWidget(self._grid_division_control_container)
+
+        return container
+    
+    def _build_grid_division_control_container(self, parent: object) -> QWidget:
+        container = QWidget(parent)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
 
         for direction in [CardinalDirection.X, CardinalDirection.Y, CardinalDirection.Z]:
             binding = IncrementControlBinding(
@@ -899,12 +910,17 @@ class CTidyStudio(QMainWindow):
 
     def _update_domain_control_panel(self) -> None:
         self._sd_controls_container.setEnabled(self.app_state.sd_show)
+        self._grid_controls_container.setEnabled(self.app_state.sd_show)
+        self._doi_controls_container.setEnabled(self.app_state.sd_show)
 
-    def _update_grid_controls_enabled(self) -> None:
-        self._grid_controls_container.setEnabled(self.app_state.grid_show)
+        self._grid_division_control_widget.setEnabled(self.app_state.sd.grid_type != GridType.NONE)
+        self._grid_division_control_container.setEnabled(self.app_state.grid_show)
 
-    def _update_domain_of_interest_control(self) -> None:
-        self._domain_of_interest_control.setEnabled(self.app_state.doi_show)
+    # def _update_grid_controls_enabled(self) -> None:
+    #     self._grid_controls_container.setEnabled(self.app_state.grid_show)
+
+    # def _update_domain_of_interest_control(self) -> None:
+    #     self._domain_of_interest_control.setEnabled(self.app_state.doi_show)
 
 class SliceView(QGraphicsView):
     BAR_WIDTH_RATIO: Final = 0.1
