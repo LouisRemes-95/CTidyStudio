@@ -428,13 +428,13 @@ class CTidyStudio(QMainWindow):
         main_layout.addWidget(right_container, 1)
 
     def _build_scroll_area(self) -> QScrollArea:
-        right_container = QScrollArea()
-        right_container.setFixedWidth(470)
-        right_container.setWidgetResizable(True)
-        right_container.setFrameShape(QFrame.NoFrame)
-        right_container.setObjectName("rightScrollArea")
+        scroll_container = QScrollArea()
+        scroll_container.setFixedWidth(470)
+        scroll_container.setWidgetResizable(True)
+        scroll_container.setFrameShape(QFrame.NoFrame)
+        scroll_container.setObjectName("rightScrollArea")
 
-        right_container.setStyleSheet("""
+        scroll_container.setStyleSheet("""
         QScrollArea#rightScrollArea {
             background: #2b2b2b;
             border: 1px solid #696969;
@@ -481,21 +481,21 @@ class CTidyStudio(QMainWindow):
 
         # Inner scroll content widget
         scroll_content = QWidget()
-        right_layout = QVBoxLayout(scroll_content)
-        right_layout.setAlignment(Qt.AlignTop)
-        right_layout.setContentsMargins(10, 10, 10, 10)
-        right_layout.setSpacing(10)
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setAlignment(Qt.AlignTop)
+        scroll_layout.setContentsMargins(10, 10, 10, 10)
+        scroll_layout.setSpacing(10)
 
-        right_layout.addWidget(self._create_apply_rotation_button(scroll_content))
-        right_layout.addWidget(self._create_slice_pos_controls(scroll_content))
-        right_layout.addWidget(self._create_sampling_domain_controls_panel(scroll_content))
+        scroll_layout.addWidget(self._create_apply_rotation_button(scroll_content))
+        scroll_layout.addWidget(self._create_slice_pos_controls(scroll_content))
+        scroll_layout.addWidget(self._create_sampling_domain_controls_panel(scroll_content))
         
-        right_container.setWidget(scroll_content)
+        scroll_container.setWidget(scroll_content)
 
-        return right_container
+        return scroll_container
 
     def _create_apply_rotation_button(self, parent: QObject) -> QPushButton:
-        btn = QPushButton()
+        btn = QPushButton(parent)
         btn.clicked.connect(self.app_state.on_apply_rotation_request)
         btn.setCursor(Qt.PointingHandCursor)
         btn.setFocusPolicy(Qt.NoFocus)
@@ -511,7 +511,7 @@ class CTidyStudio(QMainWindow):
         return btn
 
     @staticmethod
-    def _create_base_frame(parent: QObject) -> tuple[QFrame, QLayout]:
+    def _create_base_frame(parent: QObject) -> tuple[QFrame, QVBoxLayout]:
         frame = QFrame(parent = parent)
         frame.setStyleSheet("""
             QFrame {
@@ -581,11 +581,30 @@ class CTidyStudio(QMainWindow):
 
         return btn
 
-    def _create_slice_pos_control(self, direction: CardinalDirection, parent: QObject) -> QHBoxLayout:
+    def _create_slice_pos_controls(self, parent: QObject) -> QFrame:
+        frame, layout = self._create_base_frame(parent)
+
+        label = QLabel("Slice position")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+
+        layout.addSpacing(5)
+
+        layout.addWidget(self._create_slice_pos_control(CardinalDirection.X, frame))
+        layout.addSpacing(5)
+        layout.addWidget(self._create_slice_pos_control(CardinalDirection.Y, frame))
+        layout.addSpacing(5)
+        layout.addWidget(self._create_slice_pos_control(CardinalDirection.Z, frame))
+
+        return frame
+    
+    def _create_slice_pos_control(self, direction: CardinalDirection, parent: QObject) -> QWidget:
         signal = self.app_state.slice_pos_changed
-        
-        layout = QHBoxLayout()
+
+        container = QWidget(parent)
+        layout = QHBoxLayout(container)
         layout.setSpacing(5)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         btn = self._create_show_button(
             f"{direction} Slice", 
@@ -603,29 +622,12 @@ class CTidyStudio(QMainWindow):
             lambda: self.app_state.slice_pos.coord[direction.dir]
         )
 
-        increment_button = self._create_increment_control(parent, binding)
+        increment_control = self._create_increment_control(parent, binding)
         
         layout.addWidget(btn, 1)
-        layout.addWidget(increment_button, 4)
+        layout.addWidget(increment_control, 4)
 
-        return layout
-
-    def _create_slice_pos_controls(self, parent: QObject) -> QFrame:
-        frame, layout = self._create_base_frame(parent)
-
-        label = QLabel("Slice position")
-        label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(label)
-
-        layout.addSpacing(5)
-
-        layout.addLayout(self._create_slice_pos_control(CardinalDirection.X, frame))
-        layout.addSpacing(5)
-        layout.addLayout(self._create_slice_pos_control(CardinalDirection.Y, frame))
-        layout.addSpacing(5)
-        layout.addLayout(self._create_slice_pos_control(CardinalDirection.Z, frame))
-
-        return frame
+        return container
 
     def _create_sampling_domain_control(self, direction: CardinalDirection, parent: QObject) -> QLayout:
         signal = self.app_state.sd_changed
@@ -798,11 +800,11 @@ class CTidyStudio(QMainWindow):
 
         grid_controls_layout.addSpacing(5)
 
-        grid_controls_layout.addWidget(
-            self._create_domain_of_interest_control(
-                self._grid_controls_container
-            )
-        )
+        # grid_controls_layout.addWidget(
+        #     self._create_domain_of_interest_control(
+        #         self._grid_controls_container
+        #     )
+        # )
 
         division_layout.addWidget(self._grid_controls_container, 4)
 
