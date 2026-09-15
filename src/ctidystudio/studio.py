@@ -844,7 +844,11 @@ class CTidyStudio(QMainWindow):
                     self.app_state.sd.grid_divisions[direction.dir],
             )
 
-            layout.addWidget(self._build_increment_control(container, binding), 1)
+            control = self._build_increment_control(container, binding)
+            layout.addWidget(control, 1)
+
+            if direction == CardinalDirection.Z:
+                self._doi_grid_division_z_increment_control = control
 
         return container
 
@@ -989,6 +993,7 @@ class CTidyStudio(QMainWindow):
         self._grid_controls_container.setEnabled(self.app_state.sd_show)
         self._grid_division_control_widget.setEnabled(self.app_state.sd.grid_type != GridType.NONE)
         self._grid_division_control_container.setEnabled(self.app_state.grid_show)
+        self._doi_grid_division_z_increment_control.setEnabled(self.app_state.sd.grid_type == GridType.BIDIR)
 
         self._doi_controls_container.setEnabled(self.app_state.sd_show and self.app_state.sd.grid_type != GridType.NONE)
         self._doi_settings_full_container.setEnabled(self.app_state.doi_show)
