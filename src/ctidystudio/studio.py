@@ -372,6 +372,16 @@ class AppState(QObject):
 
         self.sd_changed.emit()
 
+    def on_add_doi_seed_request(self, value: int):
+        self.sd.add_doi_seed(value)
+
+        self.sd_changed.emit()
+
+    def on_set_doi_seed_request(self, value: int):
+        self.sd.set_doi_seed(value)
+
+        self.sd_changed.emit()
+
 class Mode(str, Enum):
     RESET = "reset"
     RESUME = "resume"
@@ -857,6 +867,11 @@ class CTidyStudio(QMainWindow):
         self._doi_size_container = self._build_doi_size_container(container)
         layout.addWidget(self._doi_size_container)
 
+        layout.addSpacing(5)
+
+        self._doi_seed_container = self._build_doi_seed_container(container)
+        layout.addWidget(self._doi_seed_container)
+
         return container
 
     def _build_doi_settings_show_container(self, parent: QObject) -> QWidget:
@@ -927,49 +942,60 @@ class CTidyStudio(QMainWindow):
         label.setFixedWidth(self.OBJECT_FIXED_WIDTH)
         layout.addWidget(label)
 
-        binding_x = IncrementControlBinding(
+        for direction in CardinalDirection.X, CardinalDirection.Y, CardinalDirection.Z:
+            binding = IncrementControlBinding(
+                "small",
+                partial(self.app_state.on_add_doi_size_request, direction),
+                partial(self.app_state.on_set_doi_size_request, direction),
+                self.app_state.sd_changed,
+                lambda direction=direction: self.app_state.sd.doi_size[direction.dir],
+            )
+
+            control = self._build_increment_control(container, binding)
+            layout.addWidget(control, 1)
+
+            if direction == CardinalDirection.Z:
+                self._doi_size_z_increment_control = control
+
+        return container
+
+    def _build_doi_seed_container(self, parent: QObject) -> QWidget:
+        container = QWidget(parent)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        label = QLabel("Seed")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setFixedWidth(self.OBJECT_FIXED_WIDTH)
+        layout.addWidget(label)
+
+        binding = IncrementControlBinding(
             "small",
-            partial(self.app_state.on_add_doi_size_request, CardinalDirection.X),
-            partial(self.app_state.on_set_doi_size_request, CardinalDirection.X),
+            self.app_state.on_add_doi_seed_request,
+            self.app_state.on_set_doi_seed_request,
             self.app_state.sd_changed,
-            lambda: self.app_state.sd.doi_size[CardinalDirection.X.dir],
+            lambda : self.app_state.sd.seed,
         )
 
-        layout.addWidget(self._build_increment_control(container, binding_x), 1)
-
-        binding_y = IncrementControlBinding(
-            "small",
-            partial(self.app_state.on_add_doi_size_request, CardinalDirection.Y),
-            partial(self.app_state.on_set_doi_size_request, CardinalDirection.Y),
-            self.app_state.sd_changed,
-            lambda: self.app_state.sd.doi_size[CardinalDirection.Y.dir],
-        )
-
-        layout.addWidget(self._build_increment_control(container, binding_y), 1)
-
-        binding_z = IncrementControlBinding(
-            "small",
-            partial(self.app_state.on_add_doi_size_request, CardinalDirection.Z),
-            partial(self.app_state.on_set_doi_size_request, CardinalDirection.Z),
-            self.app_state.sd_changed,
-            lambda: self.app_state.sd.doi_size[CardinalDirection.Z.dir],
-        )
-
-        layout.addWidget(self._build_increment_control(container, binding_z), 1)
+        control = self._build_increment_control(container, binding)
+        layout.addWidget(control)
 
         return container
 
     def _update_domain_control_panel(self) -> None:
         self._sd_controls_container.setEnabled(self.app_state.sd_show)
-        self._grid_controls_container.setEnabled(self.app_state.sd_show)
-        self._doi_controls_container.setEnabled(self.app_state.sd_show)
 
+        self._grid_controls_container.setEnabled(self.app_state.sd_show)
         self._grid_division_control_widget.setEnabled(self.app_state.sd.grid_type != GridType.NONE)
         self._grid_division_control_container.setEnabled(self.app_state.grid_show)
 
-        self._doi_controls_container.setEnabled(self.app_state.sd.grid_type != GridType.NONE)
+        self._doi_controls_container.setEnabled(self.app_state.sd_show and self.app_state.sd.grid_type != GridType.NONE)
         self._doi_settings_full_container.setEnabled(self.app_state.doi_show)
-        self._doi_settings_auto_container.setEnabled(not self.app_state.sd.full_domain)
+        self._doi_settings_auto_container.setEnabled(not self.app_state.sd.full_domain and self.app_state.sd.grid_type == GridType.UNIDIR)
+        self._doi_size_container.setEnabled(self.app_state.doi_show and not self.app_state.sd.full_domain)
+        self._doi_size_z_increment_control.setEnabled(not self.app_state.sd.grid_type == GridType.UNIDIR or not self.app_state.sd.uni_auto_depth)
+        self._doi_seed_container.setEnabled(self.app_state.doi_show and not self.app_state.sd.full_domain)
 
 class SliceView(QGraphicsView):
     BAR_WIDTH_RATIO: Final = 0.1
