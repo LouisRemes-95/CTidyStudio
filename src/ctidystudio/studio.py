@@ -36,7 +36,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QScrollArea,
     QGraphicsRectItem,
-    QLayout,
     QGraphicsEllipseItem,
     QButtonGroup,
 )
@@ -48,6 +47,8 @@ from PySide6.QtGui import (
     QFont,
     QPolygonF,
     QBrush,
+    QPainterPath,
+    QRegion,
 )
 from rich.live import Live
 from rich.text import Text
@@ -384,6 +385,22 @@ class AppConfig:
     mode: Mode
     autosave_interval_ms: int = 500
 
+class RoundedScrollArea(QScrollArea):
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+
+        radius = 25.5
+
+        rect = QRectF(self.viewport().rect()).adjusted(
+            .5, .5, -.5, -.5
+        )
+
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+
+        self.viewport().setMask(
+            QRegion(path.toFillPolygon().toPolygon())
+        )
 
 class CTidyStudio(QMainWindow):
     OBJECT_FIXED_WIDTH: Final = 95
@@ -447,7 +464,7 @@ class CTidyStudio(QMainWindow):
         main_layout.addWidget(right_container, 1)
 
     def _build_scroll_area(self) -> QScrollArea:
-        container = QScrollArea()
+        container = RoundedScrollArea()
         container.setFixedWidth(470)
         container.setWidgetResizable(True)
         container.setFrameShape(QFrame.NoFrame)
