@@ -416,6 +416,10 @@ class SamplingDomain(Domain):
     doi_size: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
     seed: int = 0
 
+    @property
+    def doi(self) -> Domain:
+        return self
+
     def add_grid_divisions(self, direction: CardinalDirection, value: int) -> None:
         self.grid_divisions[direction.dir] += value
 

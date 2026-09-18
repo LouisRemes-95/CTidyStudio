@@ -430,8 +430,9 @@ class CTidyStudio(QMainWindow):
     def _build_app_state(self, scan: Scan) -> None:
         self.app_state = AppState(scan)
 
-        if self._app_config.mode == Mode.RESUME:
-            self.app_state.load(self._app_config.input_dir / "app_state.json")
+        app_state_path = self._app_config.input_dir / "app_state.json"
+        if self._app_config.mode == Mode.RESUME and app_state_path.is_file():
+            self.app_state.load(app_state_path)
 
         self._build_save_connections()
 
@@ -1060,6 +1061,8 @@ class SliceView(QGraphicsView):
 
         self._update_grid_lines = self._make_grid_updater(self._pixmap_item)
 
+        self._rectangle_doi_outline = QGraphicsRectItem(parent = self._pixmap_item)
+
     def _build_conections(self):
         self.rotation_request.connect(self.app_state.on_rotation_request)
 
@@ -1073,6 +1076,7 @@ class SliceView(QGraphicsView):
 
         self.app_state.sd_changed.connect(self._update_sd_outline)
         self.app_state.sd_changed.connect(self._update_grid_lines)
+        self.app_state.sd_changed.connect(self._update_doi_outline)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -1343,12 +1347,23 @@ class SliceView(QGraphicsView):
                         obj = QGraphicsLineItem(QLineF(start_in_pixmap_coord, end_in_pixmap_coord), parent)
                         obj.setPen(QPen(GRID_COLOR, 1))
 
-                    obj.setZValue(11)
+                    obj.setZValue(12)
                     grid_lines.append(obj)
 
                 self._update_line_thickness()
 
         return update_grid_lines
+
+    def _update_doi_outline(self) -> None:
+        min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.doi.min_point))
+        max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.doi.max_point))
+
+        self._rectangle_doi_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
+        self._rectangle_doi_outline.setPen(QPen(DOI_COLOR, 1))
+        self._update_line_thickness()
+
+        self._rectangle_doi_outline.setZValue(11)
+        self._rectangle_doi_outline.setVisible(self.app_state.doi_show)
 
     def _create_overlay_button(self, text: str, func: Callable) -> QPushButton:
         btn = QPushButton(text, self)
