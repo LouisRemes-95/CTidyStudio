@@ -300,26 +300,22 @@ class AppState(QObject):
         self.slice_pos_changed.emit()
 
     def on_move_min_sd_request(self, direction: CardinalDirection, value:int):
-        self._sd.min_point.move(direction, value)
-        self._sd.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._sd.move_min_point(direction, value, 0)
 
         self.sd_changed.emit()
 
     def on_move_max_sd_request(self, direction: CardinalDirection, value:int):
-        self._sd.max_point.move(direction, value)
-        self._sd.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._sd.move_max_point(direction, value, self.scan.shape[direction.dir] - 1)
 
         self.sd_changed.emit()
 
     def on_set_min_sd_request(self, direction: CardinalDirection, value: int):
-        self._sd.min_point.move_to(direction, value)
-        self._sd.min_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._sd.move_min_point_to(direction, value, 0)
 
         self.sd_changed.emit()
 
     def on_set_max_sd_request(self, direction: CardinalDirection, value: int):
-        self._sd.max_point.move_to(direction, value)
-        self._sd.max_point.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._sd.move_max_point_to(direction, value, self.scan.shape[direction.dir] - 1)
 
         self.sd_changed.emit()
 

@@ -375,6 +375,22 @@ class Domain:
     def __post_init__(self) -> None:
         self.normalize_bounds()
 
+    def move_min_point(self, direction: CardinalDirection, value: int, lower: int) -> None:
+        self.min_point.move(direction, value)
+        self.min_point.move_back_in_bounds(direction, lower, self.max_point.coord[direction.dir])
+
+    def move_max_point(self, direction: CardinalDirection, value: int, upper: int) -> None:
+        self.max_point.move(direction, value)
+        self.max_point.move_back_in_bounds(direction, self.min_point.coord[direction.dir], upper)
+
+    def move_min_point_to(self, direction: CardinalDirection, value: int, lower: int) -> None:
+        self.min_point.move_to(direction, value)
+        self.min_point.move_back_in_bounds(direction, lower, self.max_point.coord[direction.dir])
+
+    def move_max_point_to(self, direction: CardinalDirection, value: int, upper: int) -> None:
+        self.max_point.move_to(direction, value)
+        self.max_point.move_back_in_bounds(direction, self.min_point.coord[direction.dir], upper)
+
     def normalize_bounds(self) -> None:
         self.min_point, self.max_point = (IntPoint(np.minimum(self.min_point.coord, self.max_point.coord)), IntPoint(np.maximum(self.min_point.coord, self.max_point.coord)))
 
