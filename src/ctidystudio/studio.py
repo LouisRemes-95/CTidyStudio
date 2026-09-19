@@ -132,6 +132,7 @@ SD_COLOR = QColor("red")
 GRID_COLOR = QColor("#18FBFF")
 DOI_COLOR = QColor("#18FBFF")
 
+
 SI_PREFIXES = {
     -12: "p",   # pico
     -9:  "n",   # nano
@@ -333,12 +334,12 @@ class AppState(QObject):
         self.sd_changed.emit()
 
     def on_add_grid_divisions_request(self, direction: CardinalDirection, value: int):
-        self.sd.add_grid_divisions(direction, value)
+        self._sd.add_grid_divisions(direction, value)
 
         self.sd_changed.emit()
 
     def on_set_grid_divisions_request(self, direction: CardinalDirection, value: int):
-        self.sd.set_grid_divisions(direction, value)
+        self._sd.set_grid_divisions(direction, value)
 
         self.sd_changed.emit()
 
@@ -363,24 +364,25 @@ class AppState(QObject):
         self.sd_changed.emit()
 
     def on_add_doi_size_request(self, direction: CardinalDirection, value: int):
-        self.sd.add_doi_size(direction, value)
+        self._sd.add_doi_size(direction, value)
 
         self.sd_changed.emit()
 
     def on_set_doi_size_request(self, direction: CardinalDirection, value: int):
-        self.sd.set_doi_size(direction, value)
+        self._sd.set_doi_size(direction, value)
 
         self.sd_changed.emit()
 
     def on_add_doi_seed_request(self, value: int):
-        self.sd.add_doi_seed(value)
+        self._sd.add_doi_seed(value)
 
         self.sd_changed.emit()
 
     def on_set_doi_seed_request(self, value: int):
-        self.sd.set_doi_seed(value)
+        self._sd.set_doi_seed(value)
 
         self.sd_changed.emit()
+
 
 class Mode(str, Enum):
     RESET = "reset"
@@ -394,6 +396,7 @@ class AppConfig:
     output_dir: Path
     mode: Mode
     autosave_interval_ms: int = 500
+
 
 class RoundedScrollArea(QScrollArea):
     def resizeEvent(self, event):
@@ -411,6 +414,7 @@ class RoundedScrollArea(QScrollArea):
         self.viewport().setMask(
             QRegion(path.toFillPolygon().toPolygon())
         )
+
 
 class CTidyStudio(QMainWindow):
     OBJECT_FIXED_WIDTH: Final = 95
@@ -1002,6 +1006,7 @@ class CTidyStudio(QMainWindow):
         self._doi_size_container.setEnabled(self.app_state.doi_show and not self.app_state.sd.full_domain)
         self._doi_size_z_increment_control.setEnabled(not self.app_state.sd.grid_type == GridType.UNIDIR or not self.app_state.sd.uni_auto_depth)
         self._doi_seed_container.setEnabled(self.app_state.doi_show and not self.app_state.sd.full_domain)
+
 
 class SliceView(QGraphicsView):
     BAR_WIDTH_RATIO: Final = 0.1
