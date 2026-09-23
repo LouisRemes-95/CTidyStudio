@@ -434,6 +434,19 @@ class SamplingDomain(Domain):
 
     @property
     def doi(self) -> Domain:
+        if self.full_domain:
+            return self
+
+        match self.grid_type:
+            case GridType.NONE:
+                return self
+
+            case GridType.UNIDIR:
+                return self
+
+            case GridType.BIDIR:
+                pass
+
         return self
 
     def add_grid_divisions(self, direction: CardinalDirection, value: int) -> None:
