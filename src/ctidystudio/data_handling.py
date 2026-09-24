@@ -444,25 +444,28 @@ class SamplingDomain(Domain):
 
     @property
     def doi(self) -> Domain:
-        if self.full_domain:
+        if self.full_domain or self.grid_type == GridType.NONE:
             return self
 
-        match self.grid_type:
-            case GridType.NONE:
-                return self
+        grid_divisions = self.grid_divisions.copy()
+        doi_size = self.doi_size.copy()
+        grid_spacing = list(self.grid_spacing)
 
-            case GridType.UNIDIR:
-                return self
+        if self.grid_type == GridType.UNIDIR:
+            grid_divisions[2] = (self.max_point.coord[2] - self.min_point.coord[2] - 1)
+            grid_spacing[2] = np.linspace(self.min_point.coord[2], self.max_point.coord[2], grid_divisions[2] + 2)
 
-            case GridType.BIDIR:
-                random_generator = np.random.default_rng(self.seed)
-                grid_spacing = self.grid_spacing
+            if self.uni_auto_depth:
+                x_spacing = grid_spacing[0]
+                doi_size[2] = round(x_spacing[doi_size[0]] - x_spacing[0])
 
-                min_grid_point = random_generator.integers(0, np.maximum(0, self.grid_divisions - self.doi_size + 1), endpoint = True)
-                max_grid_point = np.minimum(min_grid_point + self.doi_size, self.grid_divisions + 1)
+        rng = np.random.default_rng(self.seed)
 
-                min_point = IntPoint(np.array([spacing[index] for spacing, index in zip(grid_spacing, min_grid_point)]))
-                max_point = IntPoint(np.array([spacing[index] for spacing, index in zip(grid_spacing, max_grid_point)]))
+        min_grid_point = rng.integers(0, np.maximum(0, grid_divisions - doi_size + 1), endpoint=True)
+        max_grid_point = np.minimum(min_grid_point + doi_size, grid_divisions + 1)
+
+        min_point = IntPoint(np.array([spacing[index] for spacing, index in zip(grid_spacing, min_grid_point)]))
+        max_point = IntPoint(np.array([spacing[index] for spacing, index in zip(grid_spacing, max_grid_point)]))
 
         return Domain(min_point, max_point)
 
