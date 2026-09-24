@@ -130,7 +130,7 @@ STYTE_SHEET = """
 
 SD_COLOR = QColor("red")
 GRID_COLOR = QColor("#18FBFF")
-DOI_COLOR = QColor("#18FBFF")
+DOI_COLOR = QColor("#FFB214")
 
 
 SI_PREFIXES = {
@@ -284,13 +284,13 @@ class AppState(QObject):
     
     def on_move_slice_pos_request(self, direction: CardinalDirection, value: int):
         self._slice_pos.move(direction, value)
-        self._slice_pos.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._slice_pos.move_back_in_bounds_direction(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.slice_pos_changed.emit()
 
     def on_set_slice_pos_request(self, direction: CardinalDirection, value: int):
         self._slice_pos.move_to(direction, value)
-        self._slice_pos.move_back_in_bounds(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._slice_pos.move_back_in_bounds_direction(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.slice_pos_changed.emit()
 

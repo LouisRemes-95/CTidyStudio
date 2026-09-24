@@ -59,12 +59,15 @@ class Point:
         coord[direction.dir] = value
         self._set_coord(coord)
 
-    def move_back_in_bounds(self, direction: "CardinalDirection", lower: float, upper: float) -> None:
+    def move_back_in_bounds_direction(self, direction: "CardinalDirection", lower: float, upper: float) -> None:
         coord = self.coord.copy()
         coord[direction.dir] = max(coord[direction.dir], lower)
         coord[direction.dir] = min(coord[direction.dir], upper)
         self._set_coord(coord)
 
+    def move_back_in_bounds(self, min_point: "Point", max_point: "Point") -> None:
+        coord = np.clip(self.coord, min_point.coord, max_point.coord)
+        self._set_coord(coord)
 
 class IntPoint(Point):
     def _set_coord(self, coord: np.ndarray) -> None:
@@ -377,19 +380,19 @@ class Domain:
 
     def move_min_point(self, direction: CardinalDirection, value: int, lower: int) -> None:
         self.min_point.move(direction, value)
-        self.min_point.move_back_in_bounds(direction, lower, self.max_point.coord[direction.dir])
+        self.min_point.move_back_in_bounds_direction(direction, lower, self.max_point.coord[direction.dir])
 
     def move_max_point(self, direction: CardinalDirection, value: int, upper: int) -> None:
         self.max_point.move(direction, value)
-        self.max_point.move_back_in_bounds(direction, self.min_point.coord[direction.dir], upper)
+        self.max_point.move_back_in_bounds_direction(direction, self.min_point.coord[direction.dir], upper)
 
     def move_min_point_to(self, direction: CardinalDirection, value: int, lower: int) -> None:
         self.min_point.move_to(direction, value)
-        self.min_point.move_back_in_bounds(direction, lower, self.max_point.coord[direction.dir])
+        self.min_point.move_back_in_bounds_direction(direction, lower, self.max_point.coord[direction.dir])
 
     def move_max_point_to(self, direction: CardinalDirection, value: int, upper: int) -> None:
         self.max_point.move_to(direction, value)
-        self.max_point.move_back_in_bounds(direction, self.min_point.coord[direction.dir], upper)
+        self.max_point.move_back_in_bounds_direction(direction, self.min_point.coord[direction.dir], upper)
 
     def normalize_bounds(self) -> None:
         self.min_point, self.max_point = (IntPoint(np.minimum(self.min_point.coord, self.max_point.coord)), IntPoint(np.maximum(self.min_point.coord, self.max_point.coord)))
@@ -432,6 +435,13 @@ class SamplingDomain(Domain):
     doi_size: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
     seed: int = 0
 
+
+    @property
+    def grid_spacing(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        return tuple(np.linspace(min_coord, max_coord, divisions)
+            for min_coord, max_coord, divisions in zip(self.min_point.coord, self.max_point.coord, self.grid_divisions + 2)
+        )
+
     @property
     def doi(self) -> Domain:
         if self.full_domain:
@@ -445,9 +455,16 @@ class SamplingDomain(Domain):
                 return self
 
             case GridType.BIDIR:
-                pass
+                random_generator = np.random.default_rng(self.seed)
+                grid_spacing = self.grid_spacing
 
-        return self
+                min_grid_point = random_generator.integers(0, np.maximum(0, self.grid_divisions - self.doi_size + 1), endpoint = True)
+                max_grid_point = np.minimum(min_grid_point + self.doi_size, self.grid_divisions + 1)
+
+                min_point = IntPoint(np.array([spacing[index] for spacing, index in zip(grid_spacing, min_grid_point)]))
+                max_point = IntPoint(np.array([spacing[index] for spacing, index in zip(grid_spacing, max_grid_point)]))
+
+        return Domain(min_point, max_point)
 
     def add_grid_divisions(self, direction: CardinalDirection, value: int) -> None:
         self.grid_divisions[direction.dir] += value
@@ -480,17 +497,15 @@ class SamplingDomain(Domain):
         self.seed = max(self.seed, 0)
 
     def grid_lines_by_extremities(self) -> list[tuple[IntPoint, IntPoint]]:
-        x_linespacing, y_linespacing, z_linespacing = (np.linspace(min_coord, max_coord, divisions)
-            for min_coord, max_coord, divisions in zip(self.min_point.coord, self.max_point.coord, self.grid_divisions + 2)
-        )
+        x_linespacing, y_linespacing, z_linespacing = self.grid_spacing
 
         def generate_lines(dir1_linespacing: np.ndarray, dir1 : CardinalDirection, dir2_linespacing: np.ndarray, dir2 : CardinalDirection) -> list[tuple[IntPoint, IntPoint]]:
-                dir1_coords, dir2_coords = np.meshgrid(dir1_linespacing, dir2_linespacing)
+            dir1_coords, dir2_coords = np.meshgrid(dir1_linespacing, dir2_linespacing)
 
-                min_points = [IntPoint(np.put(coord := self.min_point.coord.copy(), [dir1.dir, dir2.dir], [x, y]) or coord) for x, y in zip(dir1_coords.ravel(), dir2_coords.ravel())]
-                max_points = [IntPoint(np.put(coord := self.max_point.coord.copy(), [dir1.dir, dir2.dir], [x, y]) or coord) for x, y in zip(dir1_coords.ravel(), dir2_coords.ravel())]
+            min_points = [IntPoint(np.put(coord := self.min_point.coord.astype(float), [dir1.dir, dir2.dir], [x, y]) or coord) for x, y in zip(dir1_coords.ravel(), dir2_coords.ravel())]
+            max_points = [IntPoint(np.put(coord := self.max_point.coord.astype(float), [dir1.dir, dir2.dir], [x, y]) or coord) for x, y in zip(dir1_coords.ravel(), dir2_coords.ravel())]
 
-                return list(zip(min_points, max_points))
+            return list(zip(min_points, max_points))
 
         match self.grid_type:
             case GridType.NONE:
