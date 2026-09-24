@@ -487,7 +487,7 @@ class CTidyStudio(QMainWindow):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
 
-        layout.addWidget(self._build_apply_rotation_button(content))
+        layout.addWidget(self._build_apply_rotarion_and_cleaning_widget(content))
         layout.addWidget(self._build_slice_pos_controls(content))
         layout.addWidget(self._build_domain_control_panel(content))
         
@@ -495,21 +495,34 @@ class CTidyStudio(QMainWindow):
 
         return container
 
-    def _build_apply_rotation_button(self, parent: QObject) -> QPushButton:
-        btn = QPushButton(parent)
-        btn.clicked.connect(self.app_state.on_apply_rotation_request)
-        btn.setCursor(Qt.PointingHandCursor)
-        btn.setFocusPolicy(Qt.NoFocus)
-        btn.setFixedHeight(32)
-        btn.setText("Apply rotation")
+    def _build_apply_rotarion_and_cleaning_widget(self, parent: QObject) -> QWidget:
+        container = QWidget(self)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
 
-        btn.setStyleSheet("""
-            QPushButton {
-                border-radius: 16px;
-            }
-        """)
+        apply_rotation_btn = QPushButton(parent)
+        apply_rotation_btn.setText("Apply rotation")
+        apply_rotation_btn.clicked.connect(self.app_state.on_apply_rotation_request)
 
-        return btn
+        cleaning_btn = QPushButton(parent)
+        cleaning_btn.setText("Clean images")
+        cleaning_btn.setCheckable(True)
+        cleaning_btn.setChecked(False)
+        # cleaning_btn.clicked.connect(self.app_state.on_apply_rotation_request) TO DO
+
+        for btn in [apply_rotation_btn, cleaning_btn]:
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setFocusPolicy(Qt.NoFocus)
+            btn.setFixedHeight(32)
+            btn.setStyleSheet("""
+                QPushButton {
+                    border-radius: 16px;
+                }
+            """)
+            layout.addWidget(btn, 1)
+
+        return container
 
     @staticmethod
     def _build_base_frame(parent: QObject) -> tuple[QFrame, QVBoxLayout]:

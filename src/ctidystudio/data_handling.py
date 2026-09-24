@@ -435,7 +435,6 @@ class SamplingDomain(Domain):
     doi_size: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
     seed: int = 0
 
-
     @property
     def grid_spacing(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         return tuple(np.linspace(min_coord, max_coord, divisions)
