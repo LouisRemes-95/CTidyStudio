@@ -318,15 +318,6 @@ class Scan:
     @property
     def center(self) -> Point:
         return self._center
-
-    @property
-    def cleaned_data(self) -> np.ndarray:
-        binary = self.data > threshold_otsu(self.data)
-
-        cleaned = remove_small_objects(binary, max_size=100, connectivity=1)
-        cleaned = remove_small_holes(cleaned, area_threshold=100, connectivity=1)
-
-        return np.where(cleaned != binary, cleaned * 255, self.data)
     
     def rotate_data(self, rotation: SnappedRotation) -> np.ndarray:
         rotation_sequence = ROTATION_LOOKUP[rotation]
