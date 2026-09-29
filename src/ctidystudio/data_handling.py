@@ -4,12 +4,15 @@ from enum import Enum
 from collections import deque
 from typing import Any, TypeAlias
 
-from scipy.spatial.transform import Rotation
-import numpy as np
 import tifffile
+import numpy as np
+from scipy.spatial.transform import Rotation
 from PySide6.QtGui import (
     QColor,
 )
+from skimage.exposure import rescale_intensity
+from skimage.filters import threshold_otsu
+from skimage.morphology import remove_small_objects, remove_small_holes
 
 
 class Point:
@@ -315,6 +318,15 @@ class Scan:
     @property
     def center(self) -> Point:
         return self._center
+
+    @property
+    def cleaned_data(self) -> np.ndarray:
+        binary = self.data > threshold_otsu(self.data)
+
+        cleaned = remove_small_objects(binary, max_size=100, connectivity=1)
+        cleaned = remove_small_holes(cleaned, area_threshold=100, connectivity=1)
+
+        return np.where(cleaned != binary, cleaned * 255, self.data)
     
     def rotate_data(self, rotation: SnappedRotation) -> np.ndarray:
         rotation_sequence = ROTATION_LOOKUP[rotation]
@@ -327,13 +339,12 @@ class Scan:
 
     @staticmethod
     def quantization_to_uint8(data: np.ndarray) -> np.ndarray:
-        data_min = data.min()
-        data_max = data.max()
+        data_min, data_max = np.percentile(data, (1, 99))
 
         if data_max == data_min:
             return np.zeros(data.shape, dtype=np.uint8)
 
-        return ((data - data_min) / (data_max - data_min) * 255).astype(np.uint8)
+        return rescale_intensity(data, in_range=(data_min, data_max), out_range=np.uint8)
     
     @classmethod
     def from_tif_stack(cls, path: Path, voxel_size: float) -> "Scan":
