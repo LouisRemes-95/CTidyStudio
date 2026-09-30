@@ -1560,19 +1560,18 @@ class IncrementControl(QWidget):
         self._editable_display.setText(str(value))
 
 
-def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: float) -> int:
+def run_ctidy_studio(app_config: AppConfig, voxel_size: float) -> int:
     with console.status("[cyan]Loading tif stack..."):
-        scan = Scan.from_tif_stack(input_dir, voxel_size)
+        scan = Scan.from_tif_stack(app_config.input_dir, voxel_size)
         
     console.print("[green]✔ Tif stack loaded[/green]")
 
     with console.status("[cyan]Building AppState..."):
-        app_config = AppConfig(input_dir, output_dir, mode)
         app_state = AppState.build(scan, app_config)
 
     console.print("[green]✔ AppState built[/green]")
 
-    if mode != Mode.SILENT:
+    if app_config.mode != Mode.SILENT:
         app = QApplication.instance() or QApplication(sys.argv)
         app.setStyleSheet(STYTE_SHEET)
             
@@ -1586,12 +1585,12 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
         console.print("[green]✔ Scan handling complete[/green]")
 
     with console.status("[cyan]Writing outputs..."):
-        app_state.write_outputs(output_dir)
+        app_state.write_outputs(app_config.output_dir)
 
     try:
-        rel = output_dir.relative_to(Path.cwd())
+        rel = app_config.output_dir.relative_to(Path.cwd())
     except ValueError:
-        rel = output_dir  # fallback to absolute path
+        rel = app_config.output_dir  # fallback to absolute path
     console.print(f"Wrote outputs to {rel}")
 
     return 0

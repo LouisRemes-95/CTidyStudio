@@ -7,7 +7,7 @@ from rich.traceback import install
 install(show_locals=True)
 
 from ctidystudio.common import UserError, console
-from ctidystudio.studio import run_ctidy_studio, Mode
+from ctidystudio.studio import run_ctidy_studio, Mode, AppConfig
 
 
 class RichArgumentParser(argparse.ArgumentParser):
@@ -83,8 +83,9 @@ def main() -> int:
     try:
         input_dir = resolve_input_dir(args.input_dir)
         output_dir = resolve_output_dir(input_dir, args.out)
+        app_config = AppConfig(input_dir, output_dir, args.mode)
 
-        return run_ctidy_studio(input_dir, output_dir, args.mode, args.voxel_size)
+        return run_ctidy_studio(app_config, args.voxel_size)
 
     except UserError as e:
         console.print(f"[bold red]✖ Error:[/bold red] {e}")
