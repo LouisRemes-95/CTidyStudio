@@ -1588,6 +1588,10 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
     with console.status("[cyan]Writing outputs..."):
         app_state.write_outputs(output_dir)
 
-    console.print("[green]✔ Outputs written[/green]")
+    try:
+        rel = output_dir.relative_to(Path.cwd())
+    except ValueError:
+        rel = output_dir  # fallback to absolute path
+    console.print(f"Wrote outputs to {rel}")
 
     return 0
