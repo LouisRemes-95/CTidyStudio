@@ -260,7 +260,7 @@ class AppState(QObject):
 
         self.fire_all_signals()
 
-    def write_outputs(self, dir: Path, doi_voxelisation_name: str = "DOI_voxelisation", filament_center_lines_name: str = "filament_center_lines") -> None:
+    def write_outputs(self, dir: Path, doi_voxelisation_name: str, filament_center_lines_name: str) -> None:
         doi_slices = tuple(slice(self.sd.doi.min_point.coord[i], self.sd.doi.max_point.coord[i] + 1) for i in range(3))
         np.savez_compressed((dir / doi_voxelisation_name).with_suffix(".npz"), data = self.scan.data[doi_slices])
         np.savez_compressed((dir / filament_center_lines_name).with_suffix(".npz"), data = self.sd.grid_lines_by_extremities_for_export())
@@ -405,6 +405,8 @@ class Mode(str, Enum):
 class AppConfig:
     input_dir: Path
     output_dir: Path
+    doi_output_name: str
+    filament_center_lines_output_name: str
     mode: Mode
     autosave_interval_ms: int = 500
 
@@ -1587,7 +1589,7 @@ def run_ctidy_studio(app_config: AppConfig, voxel_size: float) -> int:
         console.print("[green]✔ Scan handling complete[/green]")
 
     with console.status("[cyan]Writing outputs..."):
-        app_state.write_outputs(app_config.output_dir)
+        app_state.write_outputs(app_config.output_dir, app_config.doi_output_name, app_config.filament_center_lines_output_name)
 
     try:
         rel = app_config.output_dir.relative_to(Path.cwd())

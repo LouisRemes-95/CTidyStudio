@@ -47,10 +47,22 @@ def build_parser() -> RichArgumentParser:
     )
     parser.add_argument(
         "-o",
-        "--out",
+        "--output-dir",
         type=Path,
         default=None,
         help="Path to the directory where outputs should be saved",
+    )
+    parser.add_argument(
+        "--doi-output",
+        type=str,
+        default="doi_voxelisation",
+        help="Name of the DOI voxelisation output file",
+    )
+    parser.add_argument(
+        "--filament-center-lines-output",
+        type=str,
+        default="filament_center_lines",
+        help="Name of the filament center lines output file",
     )
 
     return parser
@@ -82,8 +94,8 @@ def main() -> int:
 
     try:
         input_dir = resolve_input_dir(args.input_dir)
-        output_dir = resolve_output_dir(input_dir, args.out)
-        app_config = AppConfig(input_dir, output_dir, args.mode)
+        output_dir = resolve_output_dir(input_dir, args.output_dir)
+        app_config = AppConfig(input_dir, output_dir, args.doi_output, args.filament_center_lines_output, args.mode)
 
         return run_ctidy_studio(app_config, args.voxel_size)
 
