@@ -1,55 +1,32 @@
 # CTidyStudio
 
-CTidyStudio is an early-stage desktop interface for working with CT scan stacks.
+CTidyStudio is a desktop workstation for preparing CT scan volumes stored as TIFF slice stacks. It provides a focused workflow for loading and inspecting a scan, defining a sampling domain and domain of interest (DOI), saving the working state, and exporting the resulting data for downstream processing.
 
-The goal of the project is to provide a practical "studio" for:
+Built with PySide6, CTidyStudio combines interactive slice inspection with reproducible command-line execution. It is deliberately focused on CT scan preparation rather than serving as a general-purpose medical-image viewer.
 
-- loading CT scans from TIFF stacks
-- cleaning scan data before downstream processing
-- cutting or isolating regions of interest
-- saving intermediate work so scans can be resumed later
+## Capabilities
 
-This repository is the first step in that workflow context. The codebase currently contains the initial PySide6 application shell, a CLI, and TIFF stack loading.
+CTidyStudio currently provides:
 
-## Current Status
+- TIFF-stack loading from a directory of `.tif` slices.
+- Two interactive slice views for inspecting the loaded volume.
+- Slice-position controls and optional slice-position overlays.
+- Mouse-wheel zooming and right-button panning.
+- 90-degree view rotations, with an option to apply the rotation to the scan.
+- Sampling-domain bounds for restricting the working volume.
+- Configurable unidirectional and bidirectional grid divisions.
+- Domain-of-interest selection, including full-domain and seeded subdomain modes.
+- Optional automatic DOI depth for unidirectional grids.
+- Saved application state for resuming a previous session.
+- Compressed NumPy exports of the DOI voxel data and grid-line endpoints.
 
-Implemented today:
+CTidyStudio does not currently provide image-cleaning, segmentation, or annotation tools. These operations remain outside the implemented scope of this release.
 
-- Python package scaffolded with `uv`
-- desktop app shell built with `PySide6`
-- command-line argument parsing for input directory, output directory, mode, and voxel size
-- loading a `.tif` slice stack into a 3D NumPy volume
-- example CT input data in [`input_scan_example`](/workspace/input_scan_example)
+## Installation
 
-Planned next:
+This project uses **uv** for environment and dependency management. Python 3.13 or newer is required.
 
-- scan cleaning tools
-- interactive cutting tools
-- annotations / markers
-- cached project state for `resume` and `silent` modes
-- output/export pipeline
-
-## Repository Layout
-
-- [`src/ctidystudio/cli.py`](/workspace/src/ctidystudio/cli.py): command-line entrypoint logic
-- [`src/ctidystudio/studio.py`](/workspace/src/ctidystudio/studio.py): PySide6 main window and studio runner
-- [`src/ctidystudio/data_handling.py`](/workspace/src/ctidystudio/data_handling.py): TIFF stack loading and scan container
-- [`input_scan_example`](/workspace/input_scan_example): example CT stack for local testing
-- [`pyproject.toml`](/workspace/pyproject.toml): project metadata and dependencies
-
-## Requirements
-
-- Python 3.13+
-- `uv`
-
-Project dependencies currently include:
-
-- `numpy`
-- `PySide6`
-- `rich`
-- `tifffile`
-
-## Setup
+### Clone the repository
 
 ```bash
 git clone https://github.com/LouisRemes-95/CTidyStudio.git
@@ -57,60 +34,92 @@ cd CTidyStudio
 uv sync
 ```
 
-## Running The App
+## Usage
 
-At the moment, the implemented CLI lives in [`src/ctidystudio/cli.py`](/workspace/src/ctidystudio/cli.py). You can run it directly with:
-
-```bash
-uv run python -m ctidystudio.cli input_scan_example
-```
-
-Useful options:
+Run CTidyStudio with a directory containing a TIFF stack:
 
 ```bash
-uv run python -m ctidystudio.cli input_scan_example --voxel-size 1.0
-uv run python -m ctidystudio.cli input_scan_example --mode reset
-uv run python -m ctidystudio.cli input_scan_example --mode resume
-uv run python -m ctidystudio.cli input_scan_example --mode silent
-uv run python -m ctidystudio.cli input_scan_example --out ./example_output
+uv run ctidystudio input_scan_example
 ```
 
-Arguments:
+The repository includes an example scan in [`input_scan_example`](input_scan_example).
 
-- `input_dir`: directory containing a TIFF stack
-- `--voxel-size`: voxel size used to interpret the scan volume
-- `--mode`: `reset`, `resume`, or `silent`
-- `--out`: output directory for generated files and future saved state
+### Command-line options
 
-## Data Assumptions
+| Option | Description |
+| --- | --- |
+| `input_dir` | Required directory containing the TIFF stack. |
+| `--voxel-size VALUE` | Cubic voxel size in millimetres. Default: `1.0`. |
+| `-o`, `--output-dir PATH` | Directory for exported `.npz` files. |
+| `--mode {reset,resume,silent}` | Controls saved-state loading and whether the GUI opens. Default: `resume`. |
+| `--doi-output NAME` | Base name for the DOI voxelisation export. Default: `doi_voxelisation`. |
+| `--filament-center-lines-output NAME` | Base name for the grid-line export. Default: `filament_center_lines`. |
 
-The current loader expects:
+For example, run the application with a voxel size of 25 micrometres:
 
-- a directory containing `.tif` files
-- one image per slice
-- slices sorted by filename
+```bash
+uv run ctidystudio input_scan_example --voxel-size 0.025
+```
 
-The volume is assembled as a 3D NumPy array with axis order `(z, y, x)`.
+Write exports to a chosen location:
 
-## Example Workflow
+```bash
+uv run ctidystudio input_scan_example --output-dir ./example_output
+```
+
+If no output directory is provided, CTidyStudio writes to a sibling directory named `<input_dir>_CTidyStudio_out`.
+
+### Saved state and silent export
+
+The application saves its UI state as `app_state.json` in the input directory after state changes. The modes behave as follows:
+
+- `resume` (default) loads `app_state.json` when it exists, opens the GUI, and exports after the application closes.
+- `reset` starts from the initial state, opens the GUI, and exports after the application closes.
+- `silent` loads saved state when available and writes exports without opening the GUI.
+
+Start a new session without loading saved state:
+
+```bash
+uv run ctidystudio input_scan_example --mode reset
+```
+
+Export a previously configured DOI without opening the GUI:
+
+```bash
+uv run ctidystudio input_scan_example --mode silent
+```
+
+## Data model and file format
+
+### Input stack
+
+The loader expects a directory containing one numeric, non-complex, two-dimensional `.tif` image per slice. All slices must have the same dimensions. Files are sorted lexicographically by filename and assembled into a NumPy volume with axis order `(z, y, x)`.
+
+The loaded volume is converted to an 8-bit representation for the application display and processing workflow.
+
+### Exports
+
+Each normal or silent run writes compressed `.npz` files:
+
+- `doi_voxelisation.npz` contains the selected DOI voxel volume under the `data` key.
+- `filament_center_lines.npz` contains grid-line endpoint pairs, expressed relative to the DOI origin, under the `data` key.
+
+Use `--doi-output` and `--filament-center-lines-output` to change the base names. CTidyStudio adds the `.npz` extension automatically.
+
+## Workflow
+
+CTidyStudio supports the CT-preparation stage of a larger processing pipeline:
 
 ```text
-CT scan TIFF stack
-  -> load into CTidyStudio
-  -> inspect / clean
-  -> cut or isolate region of interest
-  -> save state
-  -> export for downstream processing
+CT scan -> load -> inspect -> define sampling domain -> select DOI -> save -> export
 ```
 
-Only the loading and window bootstrap stages are implemented today.
+The exported data can then be used by downstream cleaning, analysis, meshing, or simulation tools.
 
-## Notes For Development
+## Project structure
 
-- The repository currently includes an outdated package-script mapping in [`pyproject.toml`](/workspace/pyproject.toml). The real CLI implementation is in [`src/ctidystudio/cli.py`](/workspace/src/ctidystudio/cli.py).
-- `reset`, `resume`, and `silent` modes are defined but not yet behaviorally implemented.
-- The main window is currently a starting shell for the future studio UI.
-
-## Direction
-
-This project is intended to grow incrementally into a focused CT scan preparation tool rather than a general-purpose medical imaging platform. The near-term objective is a usable workstation for loading, inspecting, cleaning, and cutting CT scan volumes with a workflow that can be resumed as the project evolves.
+- [`src/ctidystudio/cli.py`](src/ctidystudio/cli.py) — command-line parsing and application configuration.
+- [`src/ctidystudio/studio.py`](src/ctidystudio/studio.py) — PySide6 UI, application state, persistence, and export logic.
+- [`src/ctidystudio/data_handling.py`](src/ctidystudio/data_handling.py) — TIFF loading, scan geometry, rotations, sampling-domain, grid, and DOI models.
+- [`input_scan_example`](input_scan_example) — example input stack and generated sample artifacts.
+- [`pyproject.toml`](pyproject.toml) — package metadata, dependencies, and the `ctidystudio` entry point.

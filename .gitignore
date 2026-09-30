@@ -5,15 +5,12 @@ build/
 dist/
 wheels/
 *.egg-info
-*.npz
 
 # Virtual environments
 .venv
 
+# Data
 input_scan_example/
 input_scan_example_copy/
 input_scan_example_CTidyStudio_out/
-
-# Codex
-start_cli_ai_agent.sh
-AGENTS.md
+.npz

@@ -1,5 +1,5 @@
 {
-    "version": "0.2.0",
+    "version": "1.0.0",
     "configurations": [
         {
             "name": "Debug CTidyStudio",
@@ -10,7 +10,7 @@
             "args": [
                 "${workspaceFolder}/input_scan_example",
                 "--voxel-size", "0.005",
-                "--mode", "silent",
+                "--mode", "silent"
             ]
         }
     ]
