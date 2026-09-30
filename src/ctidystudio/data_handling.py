@@ -335,7 +335,7 @@ class Scan:
         if data_max == data_min:
             return np.zeros(data.shape, dtype=np.uint8)
 
-        return rescale_intensity(data, in_range=(data_min, data_max), out_range=np.uint8)
+        return rescale_intensity(data, out_range=np.uint8)
     
     @classmethod
     def from_tif_stack(cls, path: Path, voxel_size: float) -> "Scan":

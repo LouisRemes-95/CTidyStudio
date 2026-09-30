@@ -259,6 +259,9 @@ class AppState(QObject):
             self._doi_show = data['doi_show']
 
         self.fire_all_signals()
+
+    def write_outputs(self, dir: Path) -> None:
+        pass
     
     def fire_all_signals(self):
         self.view_changed.emit()
@@ -378,6 +381,17 @@ class AppState(QObject):
 
         self.sd_changed.emit()
 
+    @classmethod
+    def build(cls, scan: Scan, app_config: "AppConfig") -> "AppState":
+        app_state = cls(scan)
+
+        app_state_path = app_config.input_dir / "app_state.json"
+
+        if app_config.mode != Mode.RESET and app_state_path.is_file():
+            app_state.load(app_state_path)
+
+        return app_state
+
 
 class Mode(str, Enum):
     RESET = "reset"
@@ -414,26 +428,18 @@ class RoundedScrollArea(QScrollArea):
 class CTidyStudio(QMainWindow):
     OBJECT_FIXED_WIDTH: Final = 95
 
-    def __init__(self, scan: Scan, input_dir: Path, output_dir: Path, mode: "Mode") -> None:
+    def __init__(self, app_state: AppState, app_config: AppConfig) -> None:
         super().__init__()
 
-        self._app_config = AppConfig(input_dir, output_dir, mode)
+        self.app_state = app_state
+        self._app_config = app_config
 
-        self._build_app_state(scan)
+        self._build_save_connections()
 
         self._build_slice_views()
         self._build_ui()
 
         self.app_state.fire_all_signals()
-
-    def _build_app_state(self, scan: Scan) -> None:
-        self.app_state = AppState(scan)
-
-        app_state_path = self._app_config.input_dir / "app_state.json"
-        if self._app_config.mode == Mode.RESUME and app_state_path.is_file():
-            self.app_state.load(app_state_path)
-
-        self._build_save_connections()
 
     def _build_save_connections(self) -> None:
         self._save_timer = QTimer(self)
@@ -1560,25 +1566,28 @@ def run_ctidy_studio(input_dir: Path, output_dir: Path, mode: Mode, voxel_size: 
         
     console.print("[green]✔ Tif stack loaded[/green]")
 
-    match mode:
-        case Mode.RESET:
-            pass
-        case Mode.RESUME:
-            pass
-        case Mode.SILENT:
-            pass
-        case _:
-            raise ValueError(f"Unknown mode: {mode}")
-        
-    app = QApplication.instance() or QApplication(sys.argv)
-    app.setStyleSheet(STYTE_SHEET)
-        
-    with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
-        window = CTidyStudio(scan, input_dir, output_dir, mode)
-        window.show()
-        exit_code = app.exec()
+    with console.status("[cyan]Building AppState..."):
+        app_config = AppConfig(input_dir, output_dir, mode)
+        app_state = AppState.build(scan, app_config)
 
-    if exit_code == 0:
+    console.print("[green]✔ AppState built[/green]")
+
+    if mode != Mode.SILENT:
+        app = QApplication.instance() or QApplication(sys.argv)
+        app.setStyleSheet(STYTE_SHEET)
+            
+        with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
+            window = CTidyStudio(app_state, app_config)
+            window.show()
+            exit_code = app.exec()
+
+        if exit_code != 0: return exit_code
+
         console.print("[green]✔ Scan handling complete[/green]")
 
-    return exit_code
+    with console.status("[cyan]Writing outputs..."):
+        app_state.write_outputs(output_dir)
+
+    console.print("[green]✔ Outputs written[/green]")
+
+    return 0
