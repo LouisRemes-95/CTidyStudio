@@ -52,9 +52,8 @@ from PySide6.QtGui import (
 )
 from rich.live import Live
 from rich.text import Text
-from scipy.spatial.transform import Rotation
 
-from ctidystudio.common import UserError, console
+from ctidystudio.common import console
 from ctidystudio.data_handling import (
     CardinalDirection,
     Orientation,

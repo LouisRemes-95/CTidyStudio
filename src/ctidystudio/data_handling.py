@@ -11,8 +11,6 @@ from PySide6.QtGui import (
     QColor,
 )
 from skimage.exposure import rescale_intensity
-from skimage.filters import threshold_otsu
-from skimage.morphology import remove_small_objects, remove_small_holes
 
 
 class Point:
