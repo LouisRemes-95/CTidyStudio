@@ -372,13 +372,15 @@ class Scan:
         volume = np.stack(slices)
         return cls(voxel_size, volume)
 
-    def cleaned_data_in_domain(self, domain: "Domain") -> np.ndarray:
+    def cleaned_data_in_domain(self, min_size: float, domain: "Domain") -> np.ndarray:
+        min_voxel_size = int(np.floor(min_size/self.voxel_size))
+
         domain_slices = tuple(slice(domain.min_point.coord[i], domain.max_point.coord[i] + 1) for i in range(3))
         data = self.data[domain_slices].copy()
 
         binary = data > threshold_otsu(data)
-        cleaned = remove_small_holes(remove_small_objects(binary, min_size=100), area_threshold=100)
-        
+        cleaned = remove_small_holes(remove_small_objects(binary, min_size = min_voxel_size), area_threshold = min_voxel_size)
+
         changed = binary != cleaned
         data[changed] = np.where(cleaned[changed], data[binary].mean(), data[~binary].mean())
         return data

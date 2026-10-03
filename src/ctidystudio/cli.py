@@ -29,23 +29,6 @@ def build_parser() -> RichArgumentParser:
         help="Path to directory containing .tif stack and optional .json cache file",
     )
     parser.add_argument(
-        "--voxel-size",
-        type=float,
-        default=1.0,
-        help="Voxel size for cubic voxels in [mm]",
-    )
-    parser.add_argument(
-        "--mode",
-        type=Mode,
-        choices=list(Mode),
-        default=Mode.RESUME,
-        help=(
-            "reset: start fresh in GUI; "
-            "resume: load previous state in GUI; "
-            "silent: apply state without opening GUI"
-        ),
-    )
-    parser.add_argument(
         "-o",
         "--output-dir",
         type=Path,
@@ -63,6 +46,29 @@ def build_parser() -> RichArgumentParser:
         type=str,
         default="filament_center_lines",
         help="Name of the filament center lines output file",
+    )
+    parser.add_argument(
+        "--mode",
+        type=Mode,
+        choices=list(Mode),
+        default=Mode.RESUME,
+        help=(
+            "reset: start fresh in GUI; "
+            "resume: load previous state in GUI; "
+            "silent: apply state without opening GUI"
+        ),
+    )
+    parser.add_argument(
+        "--voxel-size",
+        type=float,
+        default=1.0,
+        help="Voxel size for cubic voxels in [mm]",
+    )
+    parser.add_argument(
+        "--minimum-cluster-size",
+        type=float,
+        default=0.0,
+        help="Minimum voxel cluster size when exporting [mm]",
     )
 
     return parser
@@ -97,7 +103,7 @@ def main() -> int:
         output_dir = resolve_output_dir(input_dir, args.output_dir)
         app_config = AppConfig(input_dir, output_dir, args.doi_output, args.filament_center_lines_output, args.mode)
 
-        return run_ctidy_studio(app_config, args.voxel_size)
+        return run_ctidy_studio(app_config, args.voxel_size, args.minimum_cluster_size)
 
     except UserError as e:
         console.print(f"[bold red]✖ Error:[/bold red] {e}")

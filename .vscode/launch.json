@@ -9,8 +9,9 @@
             "console": "integratedTerminal",
             "args": [
                 "${workspaceFolder}/input_scan_example",
+                "--mode", "silent",
                 "--voxel-size", "0.005",
-                "--mode", "silent"
+                "--minimum-cluster-size", "2"
             ]
         }
     ]

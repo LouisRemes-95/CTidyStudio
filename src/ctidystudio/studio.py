@@ -259,8 +259,8 @@ class AppState(QObject):
 
         self.fire_all_signals()
 
-    def write_outputs(self, dir: Path, doi_voxelisation_name: str, filament_center_lines_name: str) -> None:
-        np.savez_compressed((dir / doi_voxelisation_name).with_suffix(".npz"), data = self.scan.cleaned_data_in_domain(self.sd.doi))
+    def write_outputs(self, dir: Path, doi_voxelisation_name: str, filament_center_lines_name: str, minimum_cluster_size: float) -> None:
+        np.savez_compressed((dir / doi_voxelisation_name).with_suffix(".npz"), data = self.scan.cleaned_data_in_domain(minimum_cluster_size, self.sd.doi))
         np.savez_compressed((dir / filament_center_lines_name).with_suffix(".npz"), data = self.sd.grid_lines_by_extremities_for_export())
     
     def fire_all_signals(self):
@@ -1562,7 +1562,7 @@ class IncrementControl(QWidget):
         self._editable_display.setText(str(value))
 
 
-def run_ctidy_studio(app_config: AppConfig, voxel_size: float) -> int:
+def run_ctidy_studio(app_config: AppConfig, voxel_size: float, minimum_cluster_size: float) -> int:
     with console.status("[cyan]Loading tif stack..."):
         scan = Scan.from_tif_stack(app_config.input_dir, voxel_size)
         
@@ -1587,7 +1587,7 @@ def run_ctidy_studio(app_config: AppConfig, voxel_size: float) -> int:
         console.print("[green]✔ Scan handling complete[/green]")
 
     with console.status("[cyan]Writing outputs..."):
-        app_state.write_outputs(app_config.output_dir, app_config.doi_output_name, app_config.filament_center_lines_output_name)
+        app_state.write_outputs(app_config.output_dir, app_config.doi_output_name, app_config.filament_center_lines_output_name, minimum_cluster_size)
 
     try:
         rel = app_config.output_dir.relative_to(Path.cwd())
