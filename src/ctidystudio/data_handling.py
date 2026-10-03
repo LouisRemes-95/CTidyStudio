@@ -11,6 +11,8 @@ from PySide6.QtGui import (
     QColor,
 )
 from skimage.exposure import rescale_intensity
+from skimage.filters import threshold_otsu
+from skimage.morphology import remove_small_objects, remove_small_holes
 
 
 class Point:
@@ -369,6 +371,17 @@ class Scan:
 
         volume = np.stack(slices)
         return cls(voxel_size, volume)
+
+    def cleaned_data_in_domain(self, domain: "Domain") -> np.ndarray:
+        domain_slices = tuple(slice(domain.min_point.coord[i], domain.max_point.coord[i] + 1) for i in range(3))
+        data = self.data[domain_slices].copy()
+
+        binary = data > threshold_otsu(data)
+        cleaned = remove_small_holes(remove_small_objects(binary, min_size=100), area_threshold=100)
+        
+        changed = binary != cleaned
+        data[changed] = np.where(cleaned[changed], data[binary].mean(), data[~binary].mean())
+        return data
 
 @dataclass
 class Domain:

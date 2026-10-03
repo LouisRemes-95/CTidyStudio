@@ -260,8 +260,7 @@ class AppState(QObject):
         self.fire_all_signals()
 
     def write_outputs(self, dir: Path, doi_voxelisation_name: str, filament_center_lines_name: str) -> None:
-        doi_slices = tuple(slice(self.sd.doi.min_point.coord[i], self.sd.doi.max_point.coord[i] + 1) for i in range(3))
-        np.savez_compressed((dir / doi_voxelisation_name).with_suffix(".npz"), data = self.scan.data[doi_slices])
+        np.savez_compressed((dir / doi_voxelisation_name).with_suffix(".npz"), data = self.scan.cleaned_data_in_domain(self.sd.doi))
         np.savez_compressed((dir / filament_center_lines_name).with_suffix(".npz"), data = self.sd.grid_lines_by_extremities_for_export())
     
     def fire_all_signals(self):
