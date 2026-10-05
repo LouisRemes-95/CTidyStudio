@@ -1,0 +1,75 @@
+{
+    "applied_scan_rotation_in_view_ref": [
+        [
+            1,
+            0,
+            0
+        ],
+        [
+            0,
+            1,
+            0
+        ],
+        [
+            0,
+            0,
+            1
+        ]
+    ],
+    "current_scan_rotation_in_view_ref": [
+        [
+            1,
+            0,
+            0
+        ],
+        [
+            0,
+            1,
+            0
+        ],
+        [
+            0,
+            0,
+            1
+        ]
+    ],
+    "slice_pos": [
+        25,
+        0,
+        0
+    ],
+    "slice_pos_show_dir": [
+        true,
+        true,
+        true
+    ],
+    "sd": {
+        "min_point": [
+            10,
+            10,
+            10
+        ],
+        "max_point": [
+            39,
+            39,
+            39
+        ],
+        "grid_type": "Bidir.",
+        "grid_divisions": [
+            1,
+            2,
+            2
+        ],
+        "full_domain": false,
+        "uni_auto_depth": true,
+        "doi_size": [
+            2,
+            2,
+            2
+        ],
+        "seed": 0
+    },
+    "sd_show": true,
+    "grid_show": true,
+    "doi_show": true
+}

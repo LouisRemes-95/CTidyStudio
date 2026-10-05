@@ -8,7 +8,7 @@
             "program": "${workspaceFolder}/src/ctidystudio/cli.py",
             "console": "integratedTerminal",
             "args": [
-                "${workspaceFolder}/input_scan_example",
+                "${workspaceFolder}/tests/data/test_scan_50x50x50/",
                 "--mode", "silent",
                 "--voxel-size", "0.005",
                 "--minimum-cluster-size", "2"

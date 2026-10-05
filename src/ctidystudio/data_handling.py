@@ -379,7 +379,7 @@ class Scan:
         data = self.data[domain_slices].copy()
 
         binary = data > threshold_otsu(data)
-        cleaned = remove_small_holes(remove_small_objects(binary, min_size = min_voxel_size), area_threshold = min_voxel_size)
+        cleaned = remove_small_holes(remove_small_objects(binary, max_size = min_voxel_size), max_size = min_voxel_size)
 
         changed = binary != cleaned
         data[changed] = np.where(cleaned[changed], data[binary].mean(), data[~binary].mean())
