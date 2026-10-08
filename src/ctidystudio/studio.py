@@ -1562,7 +1562,7 @@ class IncrementControl(QWidget):
         self._editable_display.setText(str(value))
 
 
-def run_ctidy_studio(app_config: AppConfig, voxel_size: float, minimum_cluster_size: float) -> int:
+def run_ctidy_studio(app_config: AppConfig, voxel_size: float, minimum_cluster_size: float, seed_override: int | None) -> int:
     with console.status("[cyan]Loading tif stack..."):
         scan = Scan.from_tif_stack(app_config.input_dir, voxel_size)
         
@@ -1570,6 +1570,8 @@ def run_ctidy_studio(app_config: AppConfig, voxel_size: float, minimum_cluster_s
 
     with console.status("[cyan]Building AppState..."):
         app_state = AppState.build(scan, app_config)
+        if seed_override is not None:
+            app_state.sd.set_doi_seed(seed_override)
 
     console.print("[green]✔ AppState built[/green]")
 

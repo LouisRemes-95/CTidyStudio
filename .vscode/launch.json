@@ -9,6 +9,7 @@
             "console": "integratedTerminal",
             "args": [
                 "${workspaceFolder}/tests/data/test_scan_50x50x50/",
+                "-o", "${workspaceFolder}/tests/test_scan_50x50x50_CTidyStudio_out",
                 "--mode", "silent",
                 "--voxel-size", "0.005",
                 "--minimum-cluster-size", "2"

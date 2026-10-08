@@ -70,6 +70,12 @@ def build_parser() -> RichArgumentParser:
         default=0.0,
         help="Minimum voxel cluster size when exporting [mm]",
     )
+    parser.add_argument(
+        "--seed-override",
+        type=int,
+        default=None,
+        help="Overrides the random doi selection seed (must be >= 0)",
+    )
 
     return parser
 
@@ -103,7 +109,10 @@ def main() -> int:
         output_dir = resolve_output_dir(input_dir, args.output_dir)
         app_config = AppConfig(input_dir, output_dir, args.doi_output, args.filament_center_lines_output, args.mode)
 
-        return run_ctidy_studio(app_config, args.voxel_size, args.minimum_cluster_size)
+        if args.seed_override is not None and args.seed_override < 0:
+            parser.error("--seed-override must be >= 0")
+
+        return run_ctidy_studio(app_config, args.voxel_size, args.minimum_cluster_size, args.seed_override)
 
     except UserError as e:
         console.print(f"[bold red]✖ Error:[/bold red] {e}")
