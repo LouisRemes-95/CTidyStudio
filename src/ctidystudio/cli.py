@@ -3,6 +3,7 @@ import argparse
 from pathlib import Path
 
 from rich.traceback import install
+from rich_argparse import RichHelpFormatter
 
 install(show_locals=True)
 
@@ -21,6 +22,7 @@ def build_parser() -> RichArgumentParser:
     parser = RichArgumentParser(
         prog="CTidyStudio",
         description="Open an interface to cut and mark a CT scan",
+        formatter_class=RichHelpFormatter,
     )
 
     parser.add_argument(
