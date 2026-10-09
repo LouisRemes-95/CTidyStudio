@@ -1595,6 +1595,6 @@ def run_ctidy_studio(app_config: AppConfig, voxel_size: float, minimum_cluster_s
         rel = app_config.output_dir.relative_to(Path.cwd())
     except ValueError:
         rel = app_config.output_dir  # fallback to absolute path
-    console.print(f"Wrote outputs to {rel}")
+    console.print(f"💾 Wrote outputs to {rel}", highlight=False)
 
     return 0

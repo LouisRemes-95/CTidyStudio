@@ -3,6 +3,7 @@ import argparse
 from pathlib import Path
 
 from rich.traceback import install
+from rich.panel import Panel
 from rich_argparse import RichHelpFormatter
 
 install(show_locals=True)
@@ -102,7 +103,14 @@ def resolve_output_dir(input_dir: Path, out: Path | None) -> Path:
 def main() -> int:
     parser = build_parser()
 
-    console.print("[bold]CTidyStudio[/bold]")
+    console.print(
+    Panel(
+            "[bold cyan]CTidyStudio[/bold cyan]\n"
+            "[dim]CT scan processing interface[/dim]",
+            border_style="cyan",
+            expand=False,
+        )
+    )
 
     args = parser.parse_args()
 
