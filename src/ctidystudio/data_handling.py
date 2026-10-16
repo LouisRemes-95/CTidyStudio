@@ -372,8 +372,8 @@ class Scan:
         volume = np.stack(slices)
         return cls(voxel_size, volume)
 
-    def cleaned_data_in_domain(self, min_size: float, domain: "Domain") -> np.ndarray:
-        min_voxel_size = int(np.floor(min_size/self.voxel_size))
+    def cleaned_data_in_domain(self, minimum_cluser_volume: float, domain: "Domain") -> np.ndarray:
+        min_voxel_size = int(np.floor(minimum_cluser_volume/self.voxel_size**3))
 
         domain_slices = tuple(slice(domain.min_point.coord[i], domain.max_point.coord[i] + 1) for i in range(3))
         data = self.data[domain_slices].copy()

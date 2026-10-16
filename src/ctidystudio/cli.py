@@ -65,13 +65,13 @@ def build_parser() -> RichArgumentParser:
         "--voxel-size",
         type=float,
         default=1.0,
-        help="Voxel size for cubic voxels in [mm]",
+        help="Voxel size for cubic voxels in \[mm]",
     )
     parser.add_argument(
-        "--minimum-cluster-size",
+        "--minimum-cluster-volume",
         type=float,
         default=0.0,
-        help="Minimum voxel cluster size when exporting [mm]",
+        help="Minimum voxel cluster size when exporting \[mm³]",
     )
     parser.add_argument(
         "--seed-override",
@@ -106,7 +106,7 @@ def main() -> int:
     console.print(
     Panel(
             "[bold cyan]CTidyStudio[/bold cyan]\n"
-            "[dim]CT scan processing interface[/dim]",
+            "CT scan processing interface",
             border_style="cyan",
             expand=False,
         )
@@ -122,7 +122,7 @@ def main() -> int:
         if args.seed_override is not None and args.seed_override < 0:
             parser.error("--seed-override must be >= 0")
 
-        return run_ctidy_studio(app_config, args.voxel_size, args.minimum_cluster_size, args.seed_override)
+        return run_ctidy_studio(app_config, args.voxel_size, args.minimum_cluster_volume, args.seed_override)
 
     except UserError as e:
         console.print(f"[bold red]✖ Error:[/bold red] {e}")

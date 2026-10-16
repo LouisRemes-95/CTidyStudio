@@ -259,8 +259,8 @@ class AppState(QObject):
 
         self.fire_all_signals()
 
-    def write_outputs(self, dir: Path, doi_voxelisation_name: str, filament_center_lines_name: str, minimum_cluster_size: float) -> None:
-        np.savez_compressed((dir / doi_voxelisation_name).with_suffix(".npz"), data = self.scan.cleaned_data_in_domain(minimum_cluster_size, self.sd.doi))
+    def write_outputs(self, dir: Path, doi_voxelisation_name: str, filament_center_lines_name: str, minimum_cluster_volume: float) -> None:
+        np.savez_compressed((dir / doi_voxelisation_name).with_suffix(".npz"), data = self.scan.cleaned_data_in_domain(minimum_cluster_volume, self.sd.doi))
         np.savez_compressed((dir / filament_center_lines_name).with_suffix(".npz"), data = self.sd.grid_lines_by_extremities_for_export())
     
     def fire_all_signals(self):
@@ -1562,13 +1562,13 @@ class IncrementControl(QWidget):
         self._editable_display.setText(str(value))
 
 
-def run_ctidy_studio(app_config: AppConfig, voxel_size: float, minimum_cluster_size: float, seed_override: int | None) -> int:
-    with console.status("[cyan]Loading tif stack..."):
+def run_ctidy_studio(app_config: AppConfig, voxel_size: float, minimum_cluster_volume: float, seed_override: int | None) -> int:
+    with console.status("Loading tif stack..."):
         scan = Scan.from_tif_stack(app_config.input_dir, voxel_size)
         
     console.print("[green]✔ Tif stack loaded[/green]")
 
-    with console.status("[cyan]Building AppState..."):
+    with console.status("Building AppState..."):
         app_state = AppState.build(scan, app_config)
         if seed_override is not None:
             app_state.sd.set_doi_seed(seed_override)
@@ -1579,7 +1579,7 @@ def run_ctidy_studio(app_config: AppConfig, voxel_size: float, minimum_cluster_s
         app = QApplication.instance() or QApplication(sys.argv)
         app.setStyleSheet(STYTE_SHEET)
             
-        with Live(Text.from_markup("[cyan]Opening CTidy Studio...[/cyan]"), console=console, transient=True):
+        with Live(Text.from_markup("Opening CTidy Studio..."), console=console, transient=True):
             window = CTidyStudio(app_state, app_config)
             window.show()
             exit_code = app.exec()
@@ -1588,8 +1588,8 @@ def run_ctidy_studio(app_config: AppConfig, voxel_size: float, minimum_cluster_s
 
         console.print("[green]✔ Scan handling complete[/green]")
 
-    with console.status("[cyan]Writing outputs..."):
-        app_state.write_outputs(app_config.output_dir, app_config.doi_output_name, app_config.filament_center_lines_output_name, minimum_cluster_size)
+    with console.status("Writing outputs..."):
+        app_state.write_outputs(app_config.output_dir, app_config.doi_output_name, app_config.filament_center_lines_output_name, minimum_cluster_volume)
 
     try:
         rel = app_config.output_dir.relative_to(Path.cwd())
