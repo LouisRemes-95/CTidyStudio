@@ -22,7 +22,7 @@ class RichArgumentParser(argparse.ArgumentParser):
 def build_parser() -> RichArgumentParser:
     parser = RichArgumentParser(
         prog="CTidyStudio",
-        description="Open an interface to cut and mark a CT scan",
+        description="Interface to cut and mark a CT scan",
         formatter_class=RichHelpFormatter,
     )
 

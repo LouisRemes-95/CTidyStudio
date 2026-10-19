@@ -18,9 +18,14 @@ CTidyStudio currently provides:
 - Domain-of-interest selection, including full-domain and seeded subdomain modes.
 - Optional automatic DOI depth for unidirectional grids.
 - Saved application state for resuming a previous session.
+- Optional removal of small foreground objects and filling of small holes at
+  export time.
 - Compressed NumPy exports of the DOI voxel data and grid-line endpoints.
 
-CTidyStudio does not currently provide image-cleaning, segmentation, or annotation tools. These operations remain outside the implemented scope of this release.
+CTidyStudio is not a general-purpose segmentation or annotation application.
+Its export cleanup is limited to binary, threshold-based removal/filling of
+small voxel clusters; it does not provide manual segmentation or annotation
+tools.
 
 ## Installation
 
@@ -39,10 +44,11 @@ uv sync
 Run CTidyStudio with a directory containing a TIFF stack:
 
 ```bash
-uv run ctidystudio input_scan_example
+uv run ctidystudio tests/data/test_scan_50x50x50
 ```
 
-The repository includes an example scan in [`input_scan_example`](input_scan_example).
+The repository includes a small test stack in
+[`tests/data/test_scan_50x50x50`](tests/data/test_scan_50x50x50).
 
 ### Command-line options
 
@@ -54,17 +60,19 @@ The repository includes an example scan in [`input_scan_example`](input_scan_exa
 | `--mode {reset,resume,silent}` | Controls saved-state loading and whether the GUI opens. Default: `resume`. |
 | `--doi-output NAME` | Base name for the DOI voxelisation export. Default: `doi_voxelisation`. |
 | `--filament-center-lines-output NAME` | Base name for the grid-line export. Default: `filament_center_lines`. |
+| `--minimum-cluster-volume VALUE` | Remove foreground objects and fill background holes no larger than this physical volume in mm³ during export. Default: `0.0`. |
+| `--seed-override INTEGER` | Replace the saved DOI-selection seed for this run. Must be non-negative. |
 
 For example, run the application with a voxel size of 25 micrometres:
 
 ```bash
-uv run ctidystudio input_scan_example --voxel-size 0.025
+uv run ctidystudio tests/data/test_scan_50x50x50 --voxel-size 0.025
 ```
 
 Write exports to a chosen location:
 
 ```bash
-uv run ctidystudio input_scan_example --output-dir ./example_output
+uv run ctidystudio tests/data/test_scan_50x50x50 --output-dir ./example_output
 ```
 
 If no output directory is provided, CTidyStudio writes to a sibling directory named `<input_dir>_CTidyStudio_out`.
@@ -75,25 +83,28 @@ The application saves its UI state as `app_state.json` in the input directory af
 
 - `resume` (default) loads `app_state.json` when it exists, opens the GUI, and exports after the application closes.
 - `reset` starts from the initial state, opens the GUI, and exports after the application closes.
-- `silent` loads saved state when available and writes exports without opening the GUI.
+- `silent` loads saved state when available and writes exports without opening the GUI. If no saved state exists, it exports the initial full-volume selection.
 
 Start a new session without loading saved state:
 
 ```bash
-uv run ctidystudio input_scan_example --mode reset
+uv run ctidystudio tests/data/test_scan_50x50x50 --mode reset
 ```
 
 Export a previously configured DOI without opening the GUI:
 
 ```bash
-uv run ctidystudio input_scan_example --mode silent
+uv run ctidystudio tests/data/test_scan_50x50x50 --mode silent
 ```
 
 ## Data model and file format
 
 ### Input stack
 
-The loader expects a directory containing one numeric, non-complex, two-dimensional `.tif` image per slice. All slices must have the same dimensions. Files are sorted lexicographically by filename and assembled into a NumPy volume with axis order `(z, y, x)`.
+The loader expects a directory containing one numeric, non-complex,
+two-dimensional lowercase `.tif` image per slice. All slices must have the
+same dimensions. Files are sorted lexicographically by filename and assembled
+into a NumPy volume with axis order `(z, y, x)`.
 
 The loaded volume is converted to an 8-bit representation for the application display and processing workflow.
 
@@ -101,7 +112,7 @@ The loaded volume is converted to an 8-bit representation for the application di
 
 Each normal or silent run writes compressed `.npz` files:
 
-- `doi_voxelisation.npz` contains the selected DOI voxel volume under the `data` key.
+- `doi_voxelisation.npz` contains the selected DOI voxel volume under the `data` key. When `--minimum-cluster-volume` is positive, it has had the corresponding threshold-based small-object and small-hole cleanup applied.
 - `filament_center_lines.npz` contains grid-line endpoint pairs, expressed relative to the DOI origin, under the `data` key.
 
 Use `--doi-output` and `--filament-center-lines-output` to change the base names. CTidyStudio adds the `.npz` extension automatically.
@@ -121,5 +132,5 @@ The exported data can then be used by downstream cleaning, analysis, meshing, or
 - [`src/ctidystudio/cli.py`](src/ctidystudio/cli.py) — command-line parsing and application configuration.
 - [`src/ctidystudio/studio.py`](src/ctidystudio/studio.py) — PySide6 UI, application state, persistence, and export logic.
 - [`src/ctidystudio/data_handling.py`](src/ctidystudio/data_handling.py) — TIFF loading, scan geometry, rotations, sampling-domain, grid, and DOI models.
-- [`input_scan_example`](input_scan_example) — example input stack and generated sample artifacts.
+- [`tests/data/test_scan_50x50x50`](tests/data/test_scan_50x50x50) — small example TIFF stack used by the tests.
 - [`pyproject.toml`](pyproject.toml) — package metadata, dependencies, and the `ctidystudio` entry point.
