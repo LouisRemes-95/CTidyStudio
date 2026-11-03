@@ -1,54 +1,55 @@
-import sys
-from pathlib import Path
-from enum import Enum
-from typing import Final, Callable, Literal, Any
-import numpy as np
-import math
-from dataclasses import dataclass
-from functools import partial
-
 import json
+import math
+import sys
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import Enum
+from functools import partial
+from pathlib import Path
+from typing import Any, Final, Literal
+
+import numpy as np
 from PySide6.QtCore import (
+    QLineF,
     QObject,
-    Signal,
-    Qt,
     QPoint,
     QPointF,
     QRectF,
-    QLineF,
+    Qt,
     QTimer,
+    Signal,
+)
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QImage,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QPolygonF,
+    QRegion,
 )
 from PySide6.QtWidgets import (
     QApplication,
-    QMainWindow,
-    QGraphicsView,
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
-    QFrame,
-    QGraphicsScene,
-    QGraphicsPixmapItem,
-    QPushButton,
-    QGraphicsDropShadowEffect,
-    QGraphicsLineItem,
-    QLineEdit,
-    QSizePolicy,
-    QLabel,
-    QScrollArea,
-    QGraphicsRectItem,
-    QGraphicsEllipseItem,
     QButtonGroup,
-)
-from PySide6.QtGui import (
-    QColor,
-    QImage,
-    QPixmap,
-    QPen,
-    QFont,
-    QPolygonF,
-    QBrush,
-    QPainterPath,
-    QRegion,
+    QFrame,
+    QGraphicsDropShadowEffect,
+    QGraphicsEllipseItem,
+    QGraphicsLineItem,
+    QGraphicsPixmapItem,
+    QGraphicsRectItem,
+    QGraphicsScene,
+    QGraphicsView,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 from rich.live import Live
 from rich.text import Text
@@ -56,12 +57,12 @@ from rich.text import Text
 from ctidystudio.common import console
 from ctidystudio.data_handling import (
     CardinalDirection,
-    Orientation,
-    Scan,
-    Point,
-    IntPoint,
-    SamplingDomain,
     GridType,
+    IntPoint,
+    Orientation,
+    Point,
+    SamplingDomain,
+    Scan,
     SnappedRotation,
 )
 
@@ -132,14 +133,14 @@ DOI_COLOR = QColor("#FFB214")
 
 
 SI_PREFIXES = {
-    -12: "p",   # pico
-    -9:  "n",   # nano
-    -6:  "µ",   # micro
-    -3:  "m",   # milli
-     0:  "",    # base
-     3:  "k",   # kilo
-     6:  "M",   # mega
-     9:  "G",   # giga
+    -12: "p",  # pico
+    -9: "n",  # nano
+    -6: "µ",  # micro
+    -3: "m",  # milli
+    0: "",  # base
+    3: "k",  # kilo
+    6: "M",  # mega
+    9: "G",  # giga
 }
 
 
@@ -147,11 +148,11 @@ def _to_si(x: int, unit: str = "m") -> str:
     if x == 0:
         return f"0 {unit}"
 
-    exp = int(math.floor(math.log10(abs(x))))
+    exp = math.floor(math.log10(abs(x)))
     exp3 = (exp // 3) * 3
 
     prefix = SI_PREFIXES.get(exp3, "")
-    value = x / (10 ** exp3)
+    value = x / (10**exp3)
 
     return f"{value:.2f} {prefix}{unit}"
 
@@ -168,7 +169,9 @@ class AppState(QObject):
         self._current_scan_rotation_in_view_ref = SnappedRotation.identity()
         self._slice_pos = IntPoint(np.array([0, 0, 0]))
         self._slice_pos_show_dir = [False, False, False]
-        self._sd = SamplingDomain(IntPoint(np.array([0, 0, 0])), IntPoint(np.array(scan.shape) - 1))
+        self._sd = SamplingDomain(
+            IntPoint(np.array([0, 0, 0])), IntPoint(np.array(scan.shape) - 1)
+        )
         self._sd_show = False
         self._grid_show = False
         self._doi_show = False
@@ -180,31 +183,31 @@ class AppState(QObject):
     @property
     def applied_scan_rotation_in_view_ref(self):
         return self._applied_scan_rotation_in_view_ref
-    
+
     @property
     def current_scan_rotation_in_view_ref(self):
         return self._current_scan_rotation_in_view_ref
-    
+
     @property
     def slice_pos(self):
         return self._slice_pos
-    
+
     @property
     def slice_pos_show_dir(self):
         return self._slice_pos_show_dir
-    
+
     @property
     def sd(self):
         return self._sd
-    
+
     @property
     def sd_show(self):
         return self._sd_show
-    
+
     @property
     def grid_show(self):
         return self._grid_show and self._sd_show
-    
+
     @property
     def doi_show(self):
         return self._doi_show and self._grid_show and self._sd_show
@@ -231,17 +234,21 @@ class AppState(QObject):
             data = json.load(file)
 
         if "applied_scan_rotation_in_view_ref" in data:
-            self._current_scan_rotation_in_view_ref = SnappedRotation(tuple(tuple(row) for row in data['applied_scan_rotation_in_view_ref']))
+            self._current_scan_rotation_in_view_ref = SnappedRotation(
+                tuple(tuple(row) for row in data["applied_scan_rotation_in_view_ref"])
+            )
             self.on_apply_rotation_request()
 
         if "current_scan_rotation_in_view_ref" in data:
-            self._current_scan_rotation_in_view_ref = SnappedRotation(tuple(tuple(row) for row in data['current_scan_rotation_in_view_ref']))
+            self._current_scan_rotation_in_view_ref = SnappedRotation(
+                tuple(tuple(row) for row in data["current_scan_rotation_in_view_ref"])
+            )
 
         if "slice_pos" in data:
-            self._slice_pos = IntPoint(np.array(data['slice_pos']))
+            self._slice_pos = IntPoint(np.array(data["slice_pos"]))
 
         if "slice_pos_show_dir" in data:
-            self._slice_pos_show_dir = data['slice_pos_show_dir']
+            self._slice_pos_show_dir = data["slice_pos_show_dir"]
 
         if "sd" in data:
             sd = SamplingDomain.from_dict(data["sd"])
@@ -249,64 +256,94 @@ class AppState(QObject):
                 self._sd = sd
 
         if "sd_show" in data:
-            self._sd_show = data['sd_show']
+            self._sd_show = data["sd_show"]
 
         if "grid_show" in data:
-            self._grid_show = data['grid_show']
+            self._grid_show = data["grid_show"]
 
         if "doi_show" in data:
-            self._doi_show = data['doi_show']
+            self._doi_show = data["doi_show"]
 
         self.fire_all_signals()
 
-    def write_outputs(self, dir: Path, doi_voxelisation_name: str, filament_center_lines_name: str, minimum_cluster_volume: float) -> None:
-        np.savez_compressed((dir / doi_voxelisation_name).with_suffix(".npz"), data = self.scan.cleaned_data_in_domain(minimum_cluster_volume, self.sd.doi))
-        np.savez_compressed((dir / filament_center_lines_name).with_suffix(".npz"), data = self.sd.grid_lines_by_extremities_for_export())
-    
+    def write_outputs(
+        self,
+        dir: Path,
+        doi_voxelisation_name: str,
+        filament_center_lines_name: str,
+        minimum_cluster_volume: float,
+    ) -> None:
+        np.savez_compressed(
+            (dir / doi_voxelisation_name).with_suffix(".npz"),
+            data=self.scan.cleaned_data_in_domain(minimum_cluster_volume, self.sd.doi),
+        )
+        np.savez_compressed(
+            (dir / filament_center_lines_name).with_suffix(".npz"),
+            data=self.sd.grid_lines_by_extremities_for_export(),
+        )
+
     def fire_all_signals(self):
         self.view_changed.emit()
         self.slice_pos_changed.emit()
         self.sd_changed.emit()
 
     def on_rotation_request(self, rotation: SnappedRotation) -> None:
-        self._current_scan_rotation_in_view_ref = rotation * self._current_scan_rotation_in_view_ref
+        self._current_scan_rotation_in_view_ref = (
+            rotation * self._current_scan_rotation_in_view_ref
+        )
         self.view_changed.emit()
 
     def on_apply_rotation_request(self) -> None:
-        self.slice_pos.rotate_about_inplace(self.current_scan_rotation_in_view_ref.rotation, self.scan.center)
+        self.slice_pos.rotate_about_inplace(
+            self.current_scan_rotation_in_view_ref.rotation, self.scan.center
+        )
 
-        self._sd.rotate_about_inplace(self.current_scan_rotation_in_view_ref.rotation, self.scan.center)
+        self._sd.rotate_about_inplace(
+            self.current_scan_rotation_in_view_ref.rotation, self.scan.center
+        )
 
-        self._scan = Scan(self.scan.voxel_size, self.scan.rotate_data(self.current_scan_rotation_in_view_ref))
+        self._scan = Scan(
+            self.scan.voxel_size,
+            self.scan.rotate_data(self.current_scan_rotation_in_view_ref),
+        )
 
-        self._applied_scan_rotation_in_view_ref = self.current_scan_rotation_in_view_ref * self.applied_scan_rotation_in_view_ref
+        self._applied_scan_rotation_in_view_ref = (
+            self.current_scan_rotation_in_view_ref
+            * self.applied_scan_rotation_in_view_ref
+        )
         self._current_scan_rotation_in_view_ref = SnappedRotation.identity()
 
         self.fire_all_signals()
-    
+
     def on_move_slice_pos_request(self, direction: CardinalDirection, value: int):
         self._slice_pos.move(direction, value)
-        self._slice_pos.move_back_in_bounds_direction(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._slice_pos.move_back_in_bounds_direction(
+            direction, 0, self.scan.shape[direction.dir] - 1
+        )
 
         self.slice_pos_changed.emit()
 
     def on_set_slice_pos_request(self, direction: CardinalDirection, value: int):
         self._slice_pos.move_to(direction, value)
-        self._slice_pos.move_back_in_bounds_direction(direction, 0, self.scan.shape[direction.dir] - 1)
+        self._slice_pos.move_back_in_bounds_direction(
+            direction, 0, self.scan.shape[direction.dir] - 1
+        )
 
         self.slice_pos_changed.emit()
 
-    def on_switch_slice_pos_show_dir_request(self, direction: CardinalDirection, show: bool):
+    def on_switch_slice_pos_show_dir_request(
+        self, direction: CardinalDirection, show: bool
+    ):
         self._slice_pos_show_dir[direction.dir] = show
 
         self.slice_pos_changed.emit()
 
-    def on_move_min_sd_request(self, direction: CardinalDirection, value:int):
+    def on_move_min_sd_request(self, direction: CardinalDirection, value: int):
         self._sd.move_min_point(direction, value, 0)
 
         self.sd_changed.emit()
 
-    def on_move_max_sd_request(self, direction: CardinalDirection, value:int):
+    def on_move_max_sd_request(self, direction: CardinalDirection, value: int):
         self._sd.move_max_point(direction, value, self.scan.shape[direction.dir] - 1)
 
         self.sd_changed.emit()
@@ -415,16 +452,12 @@ class RoundedScrollArea(QScrollArea):
 
         radius = 25.5
 
-        rect = QRectF(self.viewport().rect()).adjusted(
-            .5, .5, -.5, -.5
-        )
+        rect = QRectF(self.viewport().rect()).adjusted(0.5, 0.5, -0.5, -0.5)
 
         path = QPainterPath()
         path.addRoundedRect(rect, radius, radius)
 
-        self.viewport().setMask(
-            QRegion(path.toFillPolygon().toPolygon())
-        )
+        self.viewport().setMask(QRegion(path.toFillPolygon().toPolygon()))
 
 
 class CTidyStudio(QMainWindow):
@@ -447,7 +480,9 @@ class CTidyStudio(QMainWindow):
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(500)
-        self._save_timer.timeout.connect(partial(self.app_state.save, self._app_config.input_dir))
+        self._save_timer.timeout.connect(
+            partial(self.app_state.save, self._app_config.input_dir)
+        )
 
         self.app_state.view_changed.connect(self._save_timer.start)
         self.app_state.slice_pos_changed.connect(self._save_timer.start)
@@ -455,8 +490,12 @@ class CTidyStudio(QMainWindow):
 
     def _build_slice_views(self) -> None:
 
-        self.top_slice_view = SliceView(self.app_state, Orientation(CardinalDirection.Z_, CardinalDirection.Y))
-        self.bot_slice_view = SliceView(self.app_state, Orientation(CardinalDirection.X, CardinalDirection.Y))
+        self.top_slice_view = SliceView(
+            self.app_state, Orientation(CardinalDirection.Z_, CardinalDirection.Y)
+        )
+        self.bot_slice_view = SliceView(
+            self.app_state, Orientation(CardinalDirection.X, CardinalDirection.Y)
+        )
 
     def _build_ui(self) -> None:
         self.setWindowTitle("CTidyStudio")
@@ -477,7 +516,7 @@ class CTidyStudio(QMainWindow):
         left_layout.addWidget(self.bot_slice_view, 1)
 
         right_container = self._build_scroll_area()
-        
+
         main_layout.addWidget(left_container, 2)
         main_layout.addWidget(right_container, 1)
 
@@ -497,7 +536,7 @@ class CTidyStudio(QMainWindow):
         layout.addWidget(self._build_apply_rotarion_button(content))
         layout.addWidget(self._build_slice_pos_controls(content))
         layout.addWidget(self._build_domain_control_panel(content))
-        
+
         container.setWidget(content)
 
         return container
@@ -519,7 +558,7 @@ class CTidyStudio(QMainWindow):
 
     @staticmethod
     def _build_base_frame(parent: QObject) -> tuple[QFrame, QVBoxLayout]:
-        frame = QFrame(parent = parent)
+        frame = QFrame(parent=parent)
         frame.setStyleSheet("""
             QFrame {
                 background: #353535;
@@ -539,20 +578,28 @@ class CTidyStudio(QMainWindow):
         layout.setSpacing(0)
 
         return frame, layout
-    
+
     @staticmethod
-    def _build_increment_control(parent: QObject, binding: "IncrementControlBinding") -> "IncrementControl":
+    def _build_increment_control(
+        parent: QObject, binding: "IncrementControlBinding"
+    ) -> "IncrementControl":
         control = IncrementControl(binding.type, parent)
 
         control.increment_requested.connect(binding.on_increment)
         control.value_submitted.connect(binding.on_submit)
-        
+
         binding.refresh_signal.connect(lambda: control.refresh(binding.read_value()))
 
         return control
 
     @staticmethod
-    def _build_show_button(text: str, action: Callable[[bool], None], Color: QColor, checked: bool, width: int | None) -> QPushButton:
+    def _build_show_button(
+        text: str,
+        action: Callable[[bool], None],
+        Color: QColor,
+        checked: bool,
+        width: int | None,
+    ) -> QPushButton:
         btn = QPushButton()
         btn.setCheckable(True)
         btn.setChecked(checked)
@@ -560,7 +607,7 @@ class CTidyStudio(QMainWindow):
             btn.setFixedWidth(width)
         btn.setCursor(Qt.PointingHandCursor)
         btn.setFocusPolicy(Qt.NoFocus)
-        
+
         btn.toggled.connect(action)
 
         btn.setStyleSheet(f"""
@@ -604,8 +651,10 @@ class CTidyStudio(QMainWindow):
         layout.addWidget(self._build_slice_pos_control(CardinalDirection.Z, frame))
 
         return frame
-    
-    def _build_slice_pos_control(self, direction: CardinalDirection, parent: QObject) -> QWidget:
+
+    def _build_slice_pos_control(
+        self, direction: CardinalDirection, parent: QObject
+    ) -> QWidget:
         signal = self.app_state.slice_pos_changed
 
         container = QWidget(parent)
@@ -614,23 +663,23 @@ class CTidyStudio(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
 
         btn = self._build_show_button(
-            f"{direction} Slice", 
+            f"{direction} Slice",
             partial(self.app_state.on_switch_slice_pos_show_dir_request, direction),
-            direction.associated_color, 
+            direction.associated_color,
             self.app_state.slice_pos_show_dir[direction.dir],
-            self.OBJECT_FIXED_WIDTH
-            )
-        
+            self.OBJECT_FIXED_WIDTH,
+        )
+
         binding = IncrementControlBinding(
             "normal",
             partial(self.app_state.on_move_slice_pos_request, direction),
             partial(self.app_state.on_set_slice_pos_request, direction),
             signal,
-            lambda: self.app_state.slice_pos.coord[direction.dir]
+            lambda: self.app_state.slice_pos.coord[direction.dir],
         )
 
         increment_control = self._build_increment_control(parent, binding)
-        
+
         layout.addWidget(btn, 1)
         layout.addWidget(increment_control, 4)
 
@@ -655,7 +704,7 @@ class CTidyStudio(QMainWindow):
         self._update_domain_control_panel()
 
         return frame
-    
+
     def _build_sampling_domain_widget(self, parent: QObject) -> QWidget:
         container = QWidget(parent)
         layout = QVBoxLayout(container)
@@ -673,13 +722,15 @@ class CTidyStudio(QMainWindow):
             self.app_state.on_switch_sd_show_request,
             SD_COLOR,
             self.app_state.sd_show,
-            self.OBJECT_FIXED_WIDTH
+            self.OBJECT_FIXED_WIDTH,
         )
 
         layout.addWidget(btn)
 
         layout.addSpacing(5)
-        self._sd_controls_container = self._build_sampling_domain_controls_container(container)
+        self._sd_controls_container = self._build_sampling_domain_controls_container(
+            container
+        )
         layout.addWidget(self._sd_controls_container)
 
         return container
@@ -690,15 +741,23 @@ class CTidyStudio(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        layout.addWidget(self._build_sampling_domain_control(CardinalDirection.X, container))
+        layout.addWidget(
+            self._build_sampling_domain_control(CardinalDirection.X, container)
+        )
         layout.addSpacing(5)
-        layout.addWidget(self._build_sampling_domain_control(CardinalDirection.Y, container))
+        layout.addWidget(
+            self._build_sampling_domain_control(CardinalDirection.Y, container)
+        )
         layout.addSpacing(5)
-        layout.addWidget(self._build_sampling_domain_control(CardinalDirection.Z, container))
+        layout.addWidget(
+            self._build_sampling_domain_control(CardinalDirection.Z, container)
+        )
 
-        return container 
-    
-    def _build_sampling_domain_control(self, direction: CardinalDirection, parent: QObject) -> QWidget:
+        return container
+
+    def _build_sampling_domain_control(
+        self, direction: CardinalDirection, parent: QObject
+    ) -> QWidget:
         signal = self.app_state.sd_changed
 
         container = QWidget(parent)
@@ -728,7 +787,7 @@ class CTidyStudio(QMainWindow):
             partial(self.app_state.on_move_min_sd_request, direction),
             partial(self.app_state.on_set_min_sd_request, direction),
             signal,
-            lambda: self.app_state.sd.min_point.coord[direction.dir]
+            lambda: self.app_state.sd.min_point.coord[direction.dir],
         )
         min_layout.addWidget(self._build_increment_control(container, min_binding), 4)
 
@@ -737,7 +796,7 @@ class CTidyStudio(QMainWindow):
             partial(self.app_state.on_move_max_sd_request, direction),
             partial(self.app_state.on_set_max_sd_request, direction),
             signal,
-            lambda: self.app_state.sd.max_point.coord[direction.dir]
+            lambda: self.app_state.sd.max_point.coord[direction.dir],
         )
         max_layout.addWidget(self._build_increment_control(container, max_binding), 4)
 
@@ -756,10 +815,14 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(5)
 
-        self._grid_type_control_container = self._build_grid_type_control_container(container)
+        self._grid_type_control_container = self._build_grid_type_control_container(
+            container
+        )
         layout.addWidget(self._grid_type_control_container)
-        
-        self._grid_division_control_widget = self._build_grid_division_control_widget(container)
+
+        self._grid_division_control_widget = self._build_grid_division_control_widget(
+            container
+        )
         layout.addWidget(self._grid_division_control_widget)
 
         return container
@@ -789,18 +852,14 @@ class CTidyStudio(QMainWindow):
                 }
             """)
 
-            btn.clicked.connect(
-                partial(self.app_state.change_grid_type_request, type)
-            )
+            btn.clicked.connect(partial(self.app_state.change_grid_type_request, type))
 
             type_group.addButton(btn)
 
             btn.setChecked(self.app_state.sd.grid_type == type)
 
             def update_cursor(checked: bool) -> None:
-                btn.setCursor(
-                    Qt.ArrowCursor if checked else Qt.PointingHandCursor
-                )
+                btn.setCursor(Qt.ArrowCursor if checked else Qt.PointingHandCursor)
 
             btn.toggled.connect(update_cursor)
             update_cursor(btn.isChecked())
@@ -830,25 +889,32 @@ class CTidyStudio(QMainWindow):
 
         layout.addWidget(grid_show_btn, 1)
 
-        self._grid_division_control_container = self._build_grid_division_control_container(container)
+        self._grid_division_control_container = (
+            self._build_grid_division_control_container(container)
+        )
         layout.addWidget(self._grid_division_control_container)
 
         return container
-    
+
     def _build_grid_division_control_container(self, parent: object) -> QWidget:
         container = QWidget(parent)
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
 
-        for direction in [CardinalDirection.X, CardinalDirection.Y, CardinalDirection.Z]:
+        for direction in [
+            CardinalDirection.X,
+            CardinalDirection.Y,
+            CardinalDirection.Z,
+        ]:
             binding = IncrementControlBinding(
                 "small",
                 partial(self.app_state.on_add_grid_divisions_request, direction),
                 partial(self.app_state.on_set_grid_divisions_request, direction),
                 self.app_state.sd_changed,
-                lambda direction=direction:
-                    self.app_state.sd.grid_divisions[direction.dir],
+                lambda direction=direction: self.app_state.sd.grid_divisions[
+                    direction.dir
+                ],
             )
 
             control = self._build_increment_control(container, binding)
@@ -900,7 +966,9 @@ class CTidyStudio(QMainWindow):
         )
         layout.addWidget(doi_show_btn)
 
-        self._doi_settings_full_container = self._build_doi_settings_full_container(container)
+        self._doi_settings_full_container = self._build_doi_settings_full_container(
+            container
+        )
         layout.addWidget(self._doi_settings_full_container)
 
         return container
@@ -919,7 +987,9 @@ class CTidyStudio(QMainWindow):
         btn.toggled.connect(self.app_state.on_switch_full_domain_request)
         layout.addWidget(btn, 1)
 
-        self._doi_settings_auto_container = self._build_doi_settings_auto_container(container)
+        self._doi_settings_auto_container = self._build_doi_settings_auto_container(
+            container
+        )
         layout.addWidget(self._doi_settings_auto_container, 2)
 
         return container
@@ -986,7 +1056,7 @@ class CTidyStudio(QMainWindow):
             self.app_state.on_add_doi_seed_request,
             self.app_state.on_set_doi_seed_request,
             self.app_state.sd_changed,
-            lambda : self.app_state.sd.seed,
+            lambda: self.app_state.sd.seed,
         )
 
         control = self._build_increment_control(container, binding)
@@ -998,16 +1068,32 @@ class CTidyStudio(QMainWindow):
         self._sd_controls_container.setEnabled(self.app_state.sd_show)
 
         self._grid_controls_container.setEnabled(self.app_state.sd_show)
-        self._grid_division_control_widget.setEnabled(self.app_state.sd.grid_type != GridType.NONE)
+        self._grid_division_control_widget.setEnabled(
+            self.app_state.sd.grid_type != GridType.NONE
+        )
         self._grid_division_control_container.setEnabled(self.app_state.grid_show)
-        self._doi_grid_division_z_increment_control.setEnabled(self.app_state.sd.grid_type == GridType.BIDIR)
+        self._doi_grid_division_z_increment_control.setEnabled(
+            self.app_state.sd.grid_type == GridType.BIDIR
+        )
 
-        self._doi_controls_container.setEnabled(self.app_state.sd_show and self.app_state.sd.grid_type != GridType.NONE)
+        self._doi_controls_container.setEnabled(
+            self.app_state.sd_show and self.app_state.sd.grid_type != GridType.NONE
+        )
         self._doi_settings_full_container.setEnabled(self.app_state.doi_show)
-        self._doi_settings_auto_container.setEnabled(not self.app_state.sd.full_domain and self.app_state.sd.grid_type == GridType.UNIDIR)
-        self._doi_size_container.setEnabled(self.app_state.doi_show and not self.app_state.sd.full_domain)
-        self._doi_size_z_increment_control.setEnabled(not self.app_state.sd.grid_type == GridType.UNIDIR or not self.app_state.sd.uni_auto_depth)
-        self._doi_seed_container.setEnabled(self.app_state.doi_show and not self.app_state.sd.full_domain)
+        self._doi_settings_auto_container.setEnabled(
+            not self.app_state.sd.full_domain
+            and self.app_state.sd.grid_type == GridType.UNIDIR
+        )
+        self._doi_size_container.setEnabled(
+            self.app_state.doi_show and not self.app_state.sd.full_domain
+        )
+        self._doi_size_z_increment_control.setEnabled(
+            not self.app_state.sd.grid_type == GridType.UNIDIR
+            or not self.app_state.sd.uni_auto_depth
+        )
+        self._doi_seed_container.setEnabled(
+            self.app_state.doi_show and not self.app_state.sd.full_domain
+        )
 
 
 class SliceView(QGraphicsView):
@@ -1024,14 +1110,16 @@ class SliceView(QGraphicsView):
 
     @property
     def snapped_rotation(self):
-        return self._view_orientation.rotate(self.app_state.current_scan_rotation_in_view_ref.inv()).rotation.inv()
+        return self._view_orientation.rotate(
+            self.app_state.current_scan_rotation_in_view_ref.inv()
+        ).rotation.inv()
 
     def __init__(self, app_state: AppState, view_orientation: Orientation) -> None:
         super().__init__()
 
         self.app_state = app_state
         self._view_orientation = view_orientation
-        self._view_center = Point(np.array([0, 0, 0])) # In scan coordinates
+        self._view_center = Point(np.array([0, 0, 0]))  # In scan coordinates
 
         self._build_view()
         self._build_dependencies()
@@ -1058,17 +1146,21 @@ class SliceView(QGraphicsView):
         self._pixmap_item = QGraphicsPixmapItem()
         self.scene.addItem(self._pixmap_item)
 
-        self._rotate_cw_btn = self._create_overlay_button("⟳", lambda: self._on_rotation_btn_clicked(True))
-        self._rotate_ccw_btn = self._create_overlay_button("⟲", lambda: self._on_rotation_btn_clicked(False))
+        self._rotate_cw_btn = self._create_overlay_button(
+            "⟳", lambda: self._on_rotation_btn_clicked(True)
+        )
+        self._rotate_ccw_btn = self._create_overlay_button(
+            "⟲", lambda: self._on_rotation_btn_clicked(False)
+        )
 
-        self._horizontal_slice_line = QGraphicsLineItem(parent = self._pixmap_item)
-        self._vertical_slice_line = QGraphicsLineItem(parent = self._pixmap_item)
+        self._horizontal_slice_line = QGraphicsLineItem(parent=self._pixmap_item)
+        self._vertical_slice_line = QGraphicsLineItem(parent=self._pixmap_item)
 
-        self._rectangle_sd_outline = QGraphicsRectItem(parent = self._pixmap_item)
+        self._rectangle_sd_outline = QGraphicsRectItem(parent=self._pixmap_item)
 
         self._update_grid_lines = self._make_grid_updater(self._pixmap_item)
 
-        self._rectangle_doi_outline = QGraphicsRectItem(parent = self._pixmap_item)
+        self._rectangle_doi_outline = QGraphicsRectItem(parent=self._pixmap_item)
 
     def _build_conections(self):
         self.rotation_request.connect(self.app_state.on_rotation_request)
@@ -1088,7 +1180,7 @@ class SliceView(QGraphicsView):
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
-        
+
         self._update_slice_lines()
         self._update_sd_outline()
         self._fit_view(False)
@@ -1125,7 +1217,9 @@ class SliceView(QGraphicsView):
         self._set_rotate_button_style(self._rotate_ccw_btn, font_size)
 
         # position
-        self._rotate_cw_btn.move(horizontal_margin + size + horizontal_margin, vertical_margin)
+        self._rotate_cw_btn.move(
+            horizontal_margin + size + horizontal_margin, vertical_margin
+        )
         self._rotate_ccw_btn.move(horizontal_margin, vertical_margin)
 
     def drawForeground(self, painter, rect) -> None:
@@ -1155,32 +1249,49 @@ class SliceView(QGraphicsView):
         painter.drawRect(x, y, bar_width, bar_height)
 
         # Axis
-        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state.current_scan_rotation_in_view_ref.inv())
+        view_orientation_in_view_coord = self._view_orientation.rotate(
+            self.app_state.current_scan_rotation_in_view_ref.inv()
+        )
 
         # Right axis
-        horizontal_arrow = QPolygonF([
-            QPointF(horizontal_margin, y),
-            QPointF(horizontal_margin + bar_width, y),
-            QPointF(horizontal_margin + bar_width, y + bar_height),
-            QPointF(horizontal_margin + bar_width + bar_height * 2, y - bar_height / 2),
-            QPointF(horizontal_margin + bar_width, y - 2 * bar_height),
-            QPointF(horizontal_margin + bar_width, y - bar_height),
-            QPointF(horizontal_margin, y - bar_height),
-        ])
+        horizontal_arrow = QPolygonF(
+            [
+                QPointF(horizontal_margin, y),
+                QPointF(horizontal_margin + bar_width, y),
+                QPointF(horizontal_margin + bar_width, y + bar_height),
+                QPointF(
+                    horizontal_margin + bar_width + bar_height * 2, y - bar_height / 2
+                ),
+                QPointF(horizontal_margin + bar_width, y - 2 * bar_height),
+                QPointF(horizontal_margin + bar_width, y - bar_height),
+                QPointF(horizontal_margin, y - bar_height),
+            ]
+        )
 
         painter.setBrush(QBrush(view_orientation_in_view_coord.right.associated_color))
         painter.drawPolygon(horizontal_arrow)
 
         # Up axis
-        vertical_arrow = QPolygonF([
-            QPointF(vertical_margin, h - horizontal_margin),
-            QPointF(vertical_margin, h - horizontal_margin-bar_width),
-            QPointF(vertical_margin - bar_height, h - horizontal_margin - bar_width),
-            QPointF(vertical_margin + bar_height / 2, h - horizontal_margin - bar_width - bar_height * 2),
-            QPointF(vertical_margin + 2 * bar_height, h - horizontal_margin - bar_width),
-            QPointF(vertical_margin + bar_height, h - horizontal_margin - bar_width),
-            QPointF(vertical_margin + bar_height, h - horizontal_margin),
-        ])
+        vertical_arrow = QPolygonF(
+            [
+                QPointF(vertical_margin, h - horizontal_margin),
+                QPointF(vertical_margin, h - horizontal_margin - bar_width),
+                QPointF(
+                    vertical_margin - bar_height, h - horizontal_margin - bar_width
+                ),
+                QPointF(
+                    vertical_margin + bar_height / 2,
+                    h - horizontal_margin - bar_width - bar_height * 2,
+                ),
+                QPointF(
+                    vertical_margin + 2 * bar_height, h - horizontal_margin - bar_width
+                ),
+                QPointF(
+                    vertical_margin + bar_height, h - horizontal_margin - bar_width
+                ),
+                QPointF(vertical_margin + bar_height, h - horizontal_margin),
+            ]
+        )
 
         painter.setBrush(QBrush(view_orientation_in_view_coord.up.associated_color))
         painter.drawPolygon(vertical_arrow)
@@ -1198,7 +1309,9 @@ class SliceView(QGraphicsView):
             painter.drawText(x, y, text)
 
         # Scale text
-        real_size = self.app_state.scan.voxel_size / 1000 * bar_width / self.transform().m11()
+        real_size = (
+            self.app_state.scan.voxel_size / 1000 * bar_width / self.transform().m11()
+        )
         text = _to_si(real_size)
 
         font = QFont()
@@ -1217,35 +1330,54 @@ class SliceView(QGraphicsView):
         text_x = horizontal_margin + bar_width + bar_height * 3
         text_y = y - (bar_height - fm.ascent() + fm.descent()) / 2
 
-        draw_text(text_x, text_y, str(view_orientation_in_view_coord.right), view_orientation_in_view_coord.right.associated_color)
+        draw_text(
+            text_x,
+            text_y,
+            str(view_orientation_in_view_coord.right),
+            view_orientation_in_view_coord.right.associated_color,
+        )
 
         # Up axis text
-        text_x = vertical_margin + (bar_height - fm.boundingRect(str(view_orientation_in_view_coord.up)).width()) / 2
-        text_y =  h - horizontal_margin - bar_width - bar_height * 3
+        text_x = (
+            vertical_margin
+            + (
+                bar_height
+                - fm.boundingRect(str(view_orientation_in_view_coord.up)).width()
+            )
+            / 2
+        )
+        text_y = h - horizontal_margin - bar_width - bar_height * 3
 
-        draw_text(text_x, text_y, str(view_orientation_in_view_coord.up), view_orientation_in_view_coord.up.associated_color)
+        draw_text(
+            text_x,
+            text_y,
+            str(view_orientation_in_view_coord.up),
+            view_orientation_in_view_coord.up.associated_color,
+        )
 
         painter.restore()
 
     def _update_view(self):
         rotated_data = self.app_state.scan.rotate_data(self.snapped_rotation)
-        rotated_slice_pos = self._global_to_view_coord(self.app_state.slice_pos).int_coord
+        rotated_slice_pos = self._global_to_view_coord(
+            self.app_state.slice_pos
+        ).int_coord
 
-        image = np.flipud(rotated_data[:,:,rotated_slice_pos[2]].T)
-        
+        image = np.flipud(rotated_data[:, :, rotated_slice_pos[2]].T)
+
         if image.dtype != np.uint8:
             raise ValueError("Expected uint8 image")
 
         image = np.ascontiguousarray(image)
-        
+
         qimage = QImage(
             image,
             image.shape[1],
             image.shape[0],
             image.shape[1],
             QImage.Format.Format_Grayscale8,
-            ).copy()
-        
+        ).copy()
+
         pixmap = QPixmap.fromImage(qimage)
 
         self._pixmap_item.setPixmap(pixmap)
@@ -1256,60 +1388,113 @@ class SliceView(QGraphicsView):
         self._fit_view(True)
 
     def _update_view_center(self):
-        pixmap_center = self._pixmap_item.mapFromScene(self.mapToScene(self.viewport().rect().center()))
-        self._view_center = self._view_to_global_coord(self._pixmap_to_view_coord(pixmap_center))
+        pixmap_center = self._pixmap_item.mapFromScene(
+            self.mapToScene(self.viewport().rect().center())
+        )
+        self._view_center = self._view_to_global_coord(
+            self._pixmap_to_view_coord(pixmap_center)
+        )
 
     def _center_view(self):
-        view_center_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self._view_center))
-        
+        view_center_in_pixmap_coord = self._view_to_pixmap_coord(
+            self._global_to_view_coord(self._view_center)
+        )
+
         self.centerOn(view_center_in_pixmap_coord)
 
     def _global_to_view_coord(self, point: Point) -> Point:
-        return point.rotate_about(self.snapped_rotation.rotation, self.app_state.scan.center)
-    
+        return point.rotate_about(
+            self.snapped_rotation.rotation, self.app_state.scan.center
+        )
+
     def _view_to_global_coord(self, point: Point) -> Point:
-        return point.rotate_about(self.snapped_rotation.rotation.inv(), self._global_to_view_coord(self.app_state.scan.center))
-    
+        return point.rotate_about(
+            self.snapped_rotation.rotation.inv(),
+            self._global_to_view_coord(self.app_state.scan.center),
+        )
+
     def _view_to_pixmap_coord(self, point: Point) -> QPointF:
-        return QPointF(point.coord[0] + .5, self._pixmap_item.boundingRect().height() - .5 - point.coord[1])
-    
+        return QPointF(
+            point.coord[0] + 0.5,
+            self._pixmap_item.boundingRect().height() - 0.5 - point.coord[1],
+        )
+
     def _pixmap_to_view_coord(self, point: QPointF) -> Point:
         slice_pos_in_view_coord = self._global_to_view_coord(self.app_state.slice_pos)
 
-        return Point(np.array([point.x() - .5, self._pixmap_item.boundingRect().height() - point.y() + .5, slice_pos_in_view_coord.coord[2]]))
+        return Point(
+            np.array(
+                [
+                    point.x() - 0.5,
+                    self._pixmap_item.boundingRect().height() - point.y() + 0.5,
+                    slice_pos_in_view_coord.coord[2],
+                ]
+            )
+        )
 
     def _fit_view(self, crop_only: bool = False) -> None:
         pixmap = self._pixmap_item.pixmap()
         if pixmap.isNull():
             return
 
-        fit_scale = min(self.viewport().width() / pixmap.width(), self.viewport().height() / pixmap.height()) / self.transform().m11()
+        fit_scale = (
+            min(
+                self.viewport().width() / pixmap.width(),
+                self.viewport().height() / pixmap.height(),
+            )
+            / self.transform().m11()
+        )
 
         if not crop_only or (fit_scale > 1):
             self.scale(fit_scale, fit_scale)
-        
+
         self._update_view_center()
         self._update_line_thickness()
 
     def _update_slice_lines(self) -> None:
-        view_orientation_in_view_coord = self._view_orientation.rotate(self.app_state.current_scan_rotation_in_view_ref.inv())
+        view_orientation_in_view_coord = self._view_orientation.rotate(
+            self.app_state.current_scan_rotation_in_view_ref.inv()
+        )
 
-        slice_pos_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.slice_pos))
-        
-        self._horizontal_slice_line.setLine(0, slice_pos_in_pixmap_coord.y(), self._pixmap_item.boundingRect().width(), slice_pos_in_pixmap_coord.y())
-        self._horizontal_slice_line.setPen(QPen(view_orientation_in_view_coord.up.associated_color, 1))
+        slice_pos_in_pixmap_coord = self._view_to_pixmap_coord(
+            self._global_to_view_coord(self.app_state.slice_pos)
+        )
+
+        self._horizontal_slice_line.setLine(
+            0,
+            slice_pos_in_pixmap_coord.y(),
+            self._pixmap_item.boundingRect().width(),
+            slice_pos_in_pixmap_coord.y(),
+        )
+        self._horizontal_slice_line.setPen(
+            QPen(view_orientation_in_view_coord.up.associated_color, 1)
+        )
         self._horizontal_slice_line.setZValue(12)
-        
-        self._vertical_slice_line.setLine(slice_pos_in_pixmap_coord.x(), 0, slice_pos_in_pixmap_coord.x(), self._pixmap_item.boundingRect().height())
-        self._vertical_slice_line.setPen(QPen(view_orientation_in_view_coord.right.associated_color, 1))
+
+        self._vertical_slice_line.setLine(
+            slice_pos_in_pixmap_coord.x(),
+            0,
+            slice_pos_in_pixmap_coord.x(),
+            self._pixmap_item.boundingRect().height(),
+        )
+        self._vertical_slice_line.setPen(
+            QPen(view_orientation_in_view_coord.right.associated_color, 1)
+        )
         self._vertical_slice_line.setZValue(12)
         self._update_line_thickness()
 
-        self._horizontal_slice_line.setVisible(self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.up.dir])
-        self._vertical_slice_line.setVisible(self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.right.dir])
+        self._horizontal_slice_line.setVisible(
+            self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.up.dir]
+        )
+        self._vertical_slice_line.setVisible(
+            self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.right.dir]
+        )
 
     def _update_line_thickness(self) -> None:
-        min_viewport_dimension = min(self.viewport().height(), self.viewport().width()) / self.transform().m11()
+        min_viewport_dimension = (
+            min(self.viewport().height(), self.viewport().width())
+            / self.transform().m11()
+        )
         line_thickness = min_viewport_dimension * self.SLICE_LINE_RATIO
 
         for item in self._pixmap_item.childItems():
@@ -1318,13 +1503,24 @@ class SliceView(QGraphicsView):
 
             if isinstance(item, QGraphicsEllipseItem):
                 center = item.rect().center()
-                item.setRect(center.x() - line_thickness, center.y() - line_thickness, line_thickness*2, line_thickness*2)
+                item.setRect(
+                    center.x() - line_thickness,
+                    center.y() - line_thickness,
+                    line_thickness * 2,
+                    line_thickness * 2,
+                )
 
     def _update_sd_outline(self) -> None:
-        min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.min_point))
-        max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.max_point))
+        min_point_pixmap_coord = self._view_to_pixmap_coord(
+            self._global_to_view_coord(self.app_state.sd.min_point)
+        )
+        max_point_pixmap_coord = self._view_to_pixmap_coord(
+            self._global_to_view_coord(self.app_state.sd.max_point)
+        )
 
-        self._rectangle_sd_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
+        self._rectangle_sd_outline.setRect(
+            QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized()
+        )
         self._rectangle_sd_outline.setPen(QPen(SD_COLOR, 1))
         self._update_line_thickness()
 
@@ -1343,16 +1539,28 @@ class SliceView(QGraphicsView):
 
             if self.app_state.grid_show:
                 for start, end in self.app_state.sd.grid_lines_by_extremities():
-                    start_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(start))
-                    end_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(end))
+                    start_in_pixmap_coord = self._view_to_pixmap_coord(
+                        self._global_to_view_coord(start)
+                    )
+                    end_in_pixmap_coord = self._view_to_pixmap_coord(
+                        self._global_to_view_coord(end)
+                    )
 
                     if start_in_pixmap_coord == end_in_pixmap_coord:
-                        obj = QGraphicsEllipseItem(start_in_pixmap_coord.x()-1, start_in_pixmap_coord.y()-1, 2, 2, parent)
+                        obj = QGraphicsEllipseItem(
+                            start_in_pixmap_coord.x() - 1,
+                            start_in_pixmap_coord.y() - 1,
+                            2,
+                            2,
+                            parent,
+                        )
                         obj.setPen(Qt.PenStyle.NoPen)
                         obj.setBrush(QBrush(GRID_COLOR))
 
                     else:
-                        obj = QGraphicsLineItem(QLineF(start_in_pixmap_coord, end_in_pixmap_coord), parent)
+                        obj = QGraphicsLineItem(
+                            QLineF(start_in_pixmap_coord, end_in_pixmap_coord), parent
+                        )
                         obj.setPen(QPen(GRID_COLOR, 1))
 
                     obj.setZValue(12)
@@ -1363,10 +1571,16 @@ class SliceView(QGraphicsView):
         return update_grid_lines
 
     def _update_doi_outline(self) -> None:
-        min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.doi.min_point))
-        max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.doi.max_point))
+        min_point_pixmap_coord = self._view_to_pixmap_coord(
+            self._global_to_view_coord(self.app_state.sd.doi.min_point)
+        )
+        max_point_pixmap_coord = self._view_to_pixmap_coord(
+            self._global_to_view_coord(self.app_state.sd.doi.max_point)
+        )
 
-        self._rectangle_doi_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
+        self._rectangle_doi_outline.setRect(
+            QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized()
+        )
         self._rectangle_doi_outline.setPen(QPen(DOI_COLOR, 1))
         self._update_line_thickness()
 
@@ -1420,8 +1634,7 @@ class SliceView(QGraphicsView):
         direction = view_orientation.forward if clockwise else -view_orientation.forward
 
         self.rotation_request.emit(direction.snapped_rotation_around_direction)
-        pass
-    
+
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.RightButton:
             self._panning = True
@@ -1478,7 +1691,13 @@ class IncrementControlBinding:
 
 
 class IncrementButton(QPushButton):
-    def __init__(self, text: str, increment: int, on_increment_signal: Signal, parent: QObject = None) -> None:
+    def __init__(
+        self,
+        text: str,
+        increment: int,
+        on_increment_signal: Signal,
+        parent: QObject = None,
+    ) -> None:
         super().__init__(text, parent)
 
         self._increment = increment
@@ -1490,7 +1709,6 @@ class IncrementButton(QPushButton):
 
         self.setMinimumWidth(0)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-
 
         self.setCursor(Qt.PointingHandCursor)
         self.setFocusPolicy(Qt.NoFocus)
@@ -1517,16 +1735,16 @@ class IncrementControl(QWidget):
         if type == "normal":
             increments = [
                 ("---", -100, 3),
-                ("--",  -10, 2),
-                ("-",    -1, 1),
-                ("+",     1, 1),
-                ("++",   10, 2),
+                ("--", -10, 2),
+                ("-", -1, 1),
+                ("+", 1, 1),
+                ("++", 10, 2),
                 ("+++", 100, 3),
             ]
         elif type == "small":
             increments = [
                 ("-", -1, 1),
-                ("+",  1, 1),
+                ("+", 1, 1),
             ]
         else:
             raise ValueError(f"Unknown increment control type: {type!r}")
@@ -1541,9 +1759,7 @@ class IncrementControl(QWidget):
 
         self._editable_display = QLineEdit(self)
         self._editable_display.setAlignment(Qt.AlignCenter)
-        self._editable_display.returnPressed.connect(
-            self._on_value_submitted
-        )
+        self._editable_display.returnPressed.connect(self._on_value_submitted)
         layout.addWidget(self._editable_display, 4)
 
         for text, increment, stretch in increments[middle:]:
@@ -1562,10 +1778,15 @@ class IncrementControl(QWidget):
         self._editable_display.setText(str(value))
 
 
-def run_ctidy_studio(app_config: AppConfig, voxel_size: float, minimum_cluster_volume: float, seed_override: int | None) -> int:
+def run_ctidy_studio(
+    app_config: AppConfig,
+    voxel_size: float,
+    minimum_cluster_volume: float,
+    seed_override: int | None,
+) -> int:
     with console.status("Loading tif stack..."):
         scan = Scan.from_tif_stack(app_config.input_dir, voxel_size)
-        
+
     console.print("[green]✔ Tif stack loaded[/green]")
 
     with console.status("Building AppState..."):
@@ -1578,18 +1799,26 @@ def run_ctidy_studio(app_config: AppConfig, voxel_size: float, minimum_cluster_v
     if app_config.mode != Mode.SILENT:
         app = QApplication.instance() or QApplication(sys.argv)
         app.setStyleSheet(STYTE_SHEET)
-            
-        with Live(Text.from_markup("Opening CTidy Studio..."), console=console, transient=True):
+
+        with Live(
+            Text.from_markup("Opening CTidy Studio..."), console=console, transient=True
+        ):
             window = CTidyStudio(app_state, app_config)
             window.show()
             exit_code = app.exec()
 
-        if exit_code != 0: return exit_code
+        if exit_code != 0:
+            return exit_code
 
         console.print("[green]✔ Scan handling complete[/green]")
 
     with console.status("Writing outputs..."):
-        app_state.write_outputs(app_config.output_dir, app_config.doi_output_name, app_config.filament_center_lines_output_name, minimum_cluster_volume)
+        app_state.write_outputs(
+            app_config.output_dir,
+            app_config.doi_output_name,
+            app_config.filament_center_lines_output_name,
+            minimum_cluster_volume,
+        )
 
     try:
         rel = app_config.output_dir.relative_to(Path.cwd())

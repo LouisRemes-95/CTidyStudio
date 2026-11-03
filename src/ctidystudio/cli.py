@@ -1,15 +1,15 @@
-import sys
 import argparse
+import sys
 from pathlib import Path
 
-from rich.traceback import install
 from rich.panel import Panel
+from rich.traceback import install
 from rich_argparse import RichHelpFormatter
 
 install(show_locals=True)
 
 from ctidystudio.common import UserError, console
-from ctidystudio.studio import run_ctidy_studio, Mode, AppConfig
+from ctidystudio.studio import AppConfig, Mode, run_ctidy_studio
 
 
 class RichArgumentParser(argparse.ArgumentParser):
@@ -65,13 +65,13 @@ def build_parser() -> RichArgumentParser:
         "--voxel-size",
         type=float,
         default=1.0,
-        help="Voxel size for cubic voxels in \[mm]",
+        help=r"Voxel size for cubic voxels in \[mm]",
     )
     parser.add_argument(
         "--minimum-cluster-volume",
         type=float,
         default=0.0,
-        help="Minimum voxel cluster size when exporting \[mm³]",
+        help=r"Minimum voxel cluster size when exporting \[mm³]",
     )
     parser.add_argument(
         "--seed-override",
@@ -104,9 +104,8 @@ def main() -> int:
     parser = build_parser()
 
     console.print(
-    Panel(
-            "[bold cyan]CTidyStudio[/bold cyan]\n"
-            "CT scan processing interface",
+        Panel(
+            "[bold cyan]CTidyStudio[/bold cyan]\nCT scan processing interface",
             border_style="cyan",
             expand=False,
         )
@@ -117,12 +116,20 @@ def main() -> int:
     try:
         input_dir = resolve_input_dir(args.input_dir)
         output_dir = resolve_output_dir(input_dir, args.output_dir)
-        app_config = AppConfig(input_dir, output_dir, args.doi_output, args.filament_center_lines_output, args.mode)
+        app_config = AppConfig(
+            input_dir,
+            output_dir,
+            args.doi_output,
+            args.filament_center_lines_output,
+            args.mode,
+        )
 
         if args.seed_override is not None and args.seed_override < 0:
             parser.error("--seed-override must be >= 0")
 
-        return run_ctidy_studio(app_config, args.voxel_size, args.minimum_cluster_volume, args.seed_override)
+        return run_ctidy_studio(
+            app_config, args.voxel_size, args.minimum_cluster_volume, args.seed_override
+        )
 
     except UserError as e:
         console.print(f"[bold red]✖ Error:[/bold red] {e}")
