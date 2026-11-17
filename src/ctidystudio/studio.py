@@ -279,7 +279,7 @@ class AppState(QObject):
         )
         np.savez_compressed(
             (dir / filament_center_lines_name).with_suffix(".npz"),
-            data=self.sd.grid_lines_by_extremities_for_export(),
+            data=self.sd.grid_lines_by_extremities_for_export(self.scan.voxel_size),
         )
 
     def fire_all_signals(self):
@@ -479,7 +479,7 @@ class CTidyStudio(QMainWindow):
     def _build_save_connections(self) -> None:
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
-        self._save_timer.setInterval(500)
+        self._save_timer.setInterval(self._app_config.autosave_interval_ms)
         self._save_timer.timeout.connect(
             partial(self.app_state.save, self._app_config.input_dir)
         )

@@ -672,13 +672,16 @@ class SamplingDomain(Domain):
             case _:
                 raise ValueError(f"Unsupported sampling type: {self.type}")
 
-    def grid_lines_by_extremities_for_export(self) -> np.ndarray:
+    def grid_lines_by_extremities_for_export(self, voxel_size: float) -> np.ndarray:
         doi_origin = self.doi.min_point.coord
-        return np.array(
-            [
-                [min_point.coord - doi_origin, max_point.coord - doi_origin]
-                for min_point, max_point in self.grid_lines_by_extremities()
-            ]
+        return (
+            np.array(
+                [
+                    [min_point.coord - doi_origin, max_point.coord - doi_origin]
+                    for min_point, max_point in self.grid_lines_by_extremities()
+                ]
+            )
+            * voxel_size
         )
 
     def to_dict(self) -> dict[str, Any]:
