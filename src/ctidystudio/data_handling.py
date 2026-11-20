@@ -43,15 +43,9 @@ class Point:
         if point is None:
             point = Point(np.zeros(3))
 
-        return Point(
-            rotation.apply(self.coord)
-            + np.abs(rotation.apply(point.coord))
-            - rotation.apply(point.coord)
-        )
+        return Point(rotation.apply(self.coord) + np.abs(rotation.apply(point.coord)) - rotation.apply(point.coord))
 
-    def rotate_about_inplace(
-        self, rotation: Rotation, point: "Point | None" = None
-    ) -> None:
+    def rotate_about_inplace(self, rotation: Rotation, point: "Point | None" = None) -> None:
         self._set_coord(self.rotate_about(rotation, point).coord)
 
     def move(self, direction: "CardinalDirection", value: int) -> None:
@@ -68,9 +62,7 @@ class Point:
         coord[direction.dir] = value
         self._set_coord(coord)
 
-    def move_back_in_bounds_direction(
-        self, direction: "CardinalDirection", lower: float, upper: float
-    ) -> None:
+    def move_back_in_bounds_direction(self, direction: "CardinalDirection", lower: float, upper: float) -> None:
         coord = self.coord.copy()
         coord[direction.dir] = max(coord[direction.dir], lower)
         coord[direction.dir] = min(coord[direction.dir], upper)
@@ -138,10 +130,7 @@ class SnappedRotation:
 
     @property
     def key(self) -> RotationMatrixKey:
-        return tuple(
-            tuple(map(int, row))
-            for row in np.rint(self.rotation.as_matrix()).astype(int)
-        )
+        return tuple(tuple(map(int, row)) for row in np.rint(self.rotation.as_matrix()).astype(int))
 
     def __hash__(self) -> int:
         return hash(self.key)
@@ -197,24 +186,12 @@ class CardinalDirection(Enum):
     @property
     def snapped_rotation_around_direction(self) -> SnappedRotation:
         rotations = {
-            CardinalDirection.X: SnappedRotation(
-                Rotation.from_euler("x", 90, degrees=True)
-            ),
-            CardinalDirection.Y: SnappedRotation(
-                Rotation.from_euler("y", 90, degrees=True)
-            ),
-            CardinalDirection.Z: SnappedRotation(
-                Rotation.from_euler("z", 90, degrees=True)
-            ),
-            CardinalDirection.X_: SnappedRotation(
-                Rotation.from_euler("x", -90, degrees=True)
-            ),
-            CardinalDirection.Y_: SnappedRotation(
-                Rotation.from_euler("y", -90, degrees=True)
-            ),
-            CardinalDirection.Z_: SnappedRotation(
-                Rotation.from_euler("z", -90, degrees=True)
-            ),
+            CardinalDirection.X: SnappedRotation(Rotation.from_euler("x", 90, degrees=True)),
+            CardinalDirection.Y: SnappedRotation(Rotation.from_euler("y", 90, degrees=True)),
+            CardinalDirection.Z: SnappedRotation(Rotation.from_euler("z", 90, degrees=True)),
+            CardinalDirection.X_: SnappedRotation(Rotation.from_euler("x", -90, degrees=True)),
+            CardinalDirection.Y_: SnappedRotation(Rotation.from_euler("y", -90, degrees=True)),
+            CardinalDirection.Z_: SnappedRotation(Rotation.from_euler("z", -90, degrees=True)),
         }
         return rotations[self]
 
@@ -255,9 +232,7 @@ class CardinalDirection(Enum):
 
 
 def _build_rotation_lookup() -> dict[SnappedRotation, list[CardinalDirection]]:
-    lookup: dict[SnappedRotation, list[CardinalDirection]] = {
-        SnappedRotation(Rotation.identity()): []
-    }
+    lookup: dict[SnappedRotation, list[CardinalDirection]] = {SnappedRotation(Rotation.identity()): []}
 
     rotation_queue = deque([SnappedRotation.identity()])
 
@@ -291,19 +266,13 @@ class Orientation:
         object.__setattr__(
             self,
             "right",
-            CardinalDirection(
-                tuple(np.rint(np.cross(self.forward.vec, self.up.vec)).astype(int))
-            ),
+            CardinalDirection(tuple(np.rint(np.cross(self.forward.vec, self.up.vec)).astype(int))),
         )
 
         object.__setattr__(
             self,
             "rotation",
-            SnappedRotation(
-                Rotation.from_matrix(
-                    np.column_stack((self.right.vec, self.up.vec, -self.forward.vec))
-                )
-            ),
+            SnappedRotation(Rotation.from_matrix(np.column_stack((self.right.vec, self.up.vec, -self.forward.vec)))),
         )
 
     def rotate(self, snapped_rotation: SnappedRotation) -> "Orientation":
@@ -390,32 +359,23 @@ class Scan:
             if slice_data.ndim != 2:
                 raise ValueError(f"{file}: expected 2D slice, got {slice_data.ndim}D")
 
-            if not np.issubdtype(slice_data.dtype, np.number) or np.issubdtype(
-                slice_data.dtype, np.complexfloating
-            ):
+            if not np.issubdtype(slice_data.dtype, np.number) or np.issubdtype(slice_data.dtype, np.complexfloating):
                 raise TypeError(f"{file}: unsupported dtype {slice_data.dtype}")
 
             if expected_shape is None:
                 expected_shape = slice_data.shape
             elif slice_data.shape != expected_shape:
-                raise ValueError(
-                    f"{file}: expected shape {expected_shape}, got {slice_data.shape}"
-                )
+                raise ValueError(f"{file}: expected shape {expected_shape}, got {slice_data.shape}")
 
             slices.append(slice_data)
 
         volume = np.stack(slices)
         return cls(voxel_size, volume)
 
-    def cleaned_data_in_domain(
-        self, minimum_cluser_volume: float, domain: "Domain"
-    ) -> np.ndarray:
+    def cleaned_data_in_domain(self, minimum_cluser_volume: float, domain: "Domain") -> np.ndarray:
         min_voxel_size = int(np.floor(minimum_cluser_volume / self.voxel_size**3))
 
-        domain_slices = tuple(
-            slice(domain.min_point.coord[i], domain.max_point.coord[i] + 1)
-            for i in range(3)
-        )
+        domain_slices = tuple(slice(domain.min_point.coord[i], domain.max_point.coord[i] + 1) for i in range(3))
         data = self.data[domain_slices].copy()
 
         binary = data > threshold_otsu(data)
@@ -425,9 +385,7 @@ class Scan:
         )
 
         changed = binary != cleaned
-        data[changed] = np.where(
-            cleaned[changed], data[binary].mean(), data[~binary].mean()
-        )
+        data[changed] = np.where(cleaned[changed], data[binary].mean(), data[~binary].mean())
         return data
 
 
@@ -439,37 +397,21 @@ class Domain:
     def __post_init__(self) -> None:
         self.normalize_bounds()
 
-    def move_min_point(
-        self, direction: CardinalDirection, value: int, lower: int
-    ) -> None:
+    def move_min_point(self, direction: CardinalDirection, value: int, lower: int) -> None:
         self.min_point.move(direction, value)
-        self.min_point.move_back_in_bounds_direction(
-            direction, lower, self.max_point.coord[direction.dir]
-        )
+        self.min_point.move_back_in_bounds_direction(direction, lower, self.max_point.coord[direction.dir])
 
-    def move_max_point(
-        self, direction: CardinalDirection, value: int, upper: int
-    ) -> None:
+    def move_max_point(self, direction: CardinalDirection, value: int, upper: int) -> None:
         self.max_point.move(direction, value)
-        self.max_point.move_back_in_bounds_direction(
-            direction, self.min_point.coord[direction.dir], upper
-        )
+        self.max_point.move_back_in_bounds_direction(direction, self.min_point.coord[direction.dir], upper)
 
-    def move_min_point_to(
-        self, direction: CardinalDirection, value: int, lower: int
-    ) -> None:
+    def move_min_point_to(self, direction: CardinalDirection, value: int, lower: int) -> None:
         self.min_point.move_to(direction, value)
-        self.min_point.move_back_in_bounds_direction(
-            direction, lower, self.max_point.coord[direction.dir]
-        )
+        self.min_point.move_back_in_bounds_direction(direction, lower, self.max_point.coord[direction.dir])
 
-    def move_max_point_to(
-        self, direction: CardinalDirection, value: int, upper: int
-    ) -> None:
+    def move_max_point_to(self, direction: CardinalDirection, value: int, upper: int) -> None:
         self.max_point.move_to(direction, value)
-        self.max_point.move_back_in_bounds_direction(
-            direction, self.min_point.coord[direction.dir], upper
-        )
+        self.max_point.move_back_in_bounds_direction(direction, self.min_point.coord[direction.dir], upper)
 
     def normalize_bounds(self) -> None:
         self.min_point, self.max_point = (
@@ -477,17 +419,13 @@ class Domain:
             IntPoint(np.maximum(self.min_point.coord, self.max_point.coord)),
         )
 
-    def rotate_about(
-        self, rotation: Rotation, point: "Point | None" = None
-    ) -> "Domain":
+    def rotate_about(self, rotation: Rotation, point: "Point | None" = None) -> "Domain":
         return Domain(
             self.min_point.rotate_about(rotation, point),
             self.max_point.rotate_about(rotation, point),
         )
 
-    def rotate_about_inplace(
-        self, rotation: Rotation, point: "Point | None" = None
-    ) -> None:
+    def rotate_about_inplace(self, rotation: Rotation, point: "Point | None" = None) -> None:
         self.min_point.rotate_about_inplace(rotation, point)
         self.max_point.rotate_about_inplace(rotation, point)
 
@@ -504,9 +442,7 @@ class Domain:
         if "min_point" not in data or "max_point" not in data:
             return None
 
-        return cls(
-            IntPoint(np.array(data["min_point"])), IntPoint(np.array(data["max_point"]))
-        )
+        return cls(IntPoint(np.array(data["min_point"])), IntPoint(np.array(data["max_point"])))
 
 
 class GridType(str, Enum):
@@ -519,15 +455,11 @@ class GridType(str, Enum):
 class SamplingDomain(Domain):
     # UnidirAuto, computes the voxel depth equal to the max X or Y dimension
     grid_type: GridType = GridType.NONE
-    grid_divisions: np.typing.NDArray[np.int_] = field(
-        default_factory=lambda: np.zeros(3, dtype=int)
-    )
+    grid_divisions: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
     # doi_size = number divisions making up the doi, if Unidir doi_size[1] = Z voxel depth
     full_domain: bool = True
     uni_auto_depth: bool = True
-    doi_size: np.typing.NDArray[np.int_] = field(
-        default_factory=lambda: np.zeros(3, dtype=int)
-    )
+    doi_size: np.typing.NDArray[np.int_] = field(default_factory=lambda: np.zeros(3, dtype=int))
     seed: int = 0
 
     @property
@@ -550,9 +482,7 @@ class SamplingDomain(Domain):
 
         if self.grid_type == GridType.UNIDIR:
             grid_divisions[2] = self.max_point.coord[2] - self.min_point.coord[2] - 1
-            grid_spacing[2] = np.linspace(
-                self.min_point.coord[2], self.max_point.coord[2], grid_divisions[2] + 2
-            )
+            grid_spacing[2] = np.linspace(self.min_point.coord[2], self.max_point.coord[2], grid_divisions[2] + 2)
 
             if self.uni_auto_depth:
                 x_spacing = grid_spacing[0]
@@ -560,21 +490,11 @@ class SamplingDomain(Domain):
 
         rng = np.random.default_rng(self.seed)
 
-        min_grid_point = rng.integers(
-            0, np.maximum(0, grid_divisions - doi_size + 1), endpoint=True
-        )
+        min_grid_point = rng.integers(0, np.maximum(0, grid_divisions - doi_size + 1), endpoint=True)
         max_grid_point = np.minimum(min_grid_point + doi_size, grid_divisions + 1)
 
-        min_point = IntPoint(
-            np.array(
-                [spacing[index] for spacing, index in zip(grid_spacing, min_grid_point)]
-            )
-        )
-        max_point = IntPoint(
-            np.array(
-                [spacing[index] for spacing, index in zip(grid_spacing, max_grid_point)]
-            )
-        )
+        min_point = IntPoint(np.array([spacing[index] for spacing, index in zip(grid_spacing, min_grid_point)]))
+        max_point = IntPoint(np.array([spacing[index] for spacing, index in zip(grid_spacing, max_grid_point)]))
 
         return Domain(min_point, max_point)
 

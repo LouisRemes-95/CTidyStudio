@@ -169,9 +169,7 @@ class AppState(QObject):
         self._current_scan_rotation_in_view_ref = SnappedRotation.identity()
         self._slice_pos = IntPoint(np.array([0, 0, 0]))
         self._slice_pos_show_dir = [False, False, False]
-        self._sd = SamplingDomain(
-            IntPoint(np.array([0, 0, 0])), IntPoint(np.array(scan.shape) - 1)
-        )
+        self._sd = SamplingDomain(IntPoint(np.array([0, 0, 0])), IntPoint(np.array(scan.shape) - 1))
         self._sd_show = False
         self._grid_show = False
         self._doi_show = False
@@ -224,8 +222,7 @@ class AppState(QObject):
             "doi_show": self._doi_show,
         }
 
-    def save(self, dir: Path) -> None:
-        path = dir / "app_state.json"
+    def save(self, path: Path) -> None:
         with path.open("w", encoding="utf-8") as file:
             json.dump(self._to_dict(), file, indent=4)
 
@@ -288,19 +285,13 @@ class AppState(QObject):
         self.sd_changed.emit()
 
     def on_rotation_request(self, rotation: SnappedRotation) -> None:
-        self._current_scan_rotation_in_view_ref = (
-            rotation * self._current_scan_rotation_in_view_ref
-        )
+        self._current_scan_rotation_in_view_ref = rotation * self._current_scan_rotation_in_view_ref
         self.view_changed.emit()
 
     def on_apply_rotation_request(self) -> None:
-        self.slice_pos.rotate_about_inplace(
-            self.current_scan_rotation_in_view_ref.rotation, self.scan.center
-        )
+        self.slice_pos.rotate_about_inplace(self.current_scan_rotation_in_view_ref.rotation, self.scan.center)
 
-        self._sd.rotate_about_inplace(
-            self.current_scan_rotation_in_view_ref.rotation, self.scan.center
-        )
+        self._sd.rotate_about_inplace(self.current_scan_rotation_in_view_ref.rotation, self.scan.center)
 
         self._scan = Scan(
             self.scan.voxel_size,
@@ -308,8 +299,7 @@ class AppState(QObject):
         )
 
         self._applied_scan_rotation_in_view_ref = (
-            self.current_scan_rotation_in_view_ref
-            * self.applied_scan_rotation_in_view_ref
+            self.current_scan_rotation_in_view_ref * self.applied_scan_rotation_in_view_ref
         )
         self._current_scan_rotation_in_view_ref = SnappedRotation.identity()
 
@@ -317,23 +307,17 @@ class AppState(QObject):
 
     def on_move_slice_pos_request(self, direction: CardinalDirection, value: int):
         self._slice_pos.move(direction, value)
-        self._slice_pos.move_back_in_bounds_direction(
-            direction, 0, self.scan.shape[direction.dir] - 1
-        )
+        self._slice_pos.move_back_in_bounds_direction(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.slice_pos_changed.emit()
 
     def on_set_slice_pos_request(self, direction: CardinalDirection, value: int):
         self._slice_pos.move_to(direction, value)
-        self._slice_pos.move_back_in_bounds_direction(
-            direction, 0, self.scan.shape[direction.dir] - 1
-        )
+        self._slice_pos.move_back_in_bounds_direction(direction, 0, self.scan.shape[direction.dir] - 1)
 
         self.slice_pos_changed.emit()
 
-    def on_switch_slice_pos_show_dir_request(
-        self, direction: CardinalDirection, show: bool
-    ):
+    def on_switch_slice_pos_show_dir_request(self, direction: CardinalDirection, show: bool):
         self._slice_pos_show_dir[direction.dir] = show
 
         self.slice_pos_changed.emit()
@@ -419,15 +403,17 @@ class AppState(QObject):
         self.sd_changed.emit()
 
     @classmethod
-    def build(cls, scan: Scan, app_config: "AppConfig") -> "AppState":
+    def build(cls, scan: Scan, app_config: "AppConfig") -> tuple["AppState", "Mode"]:
         app_state = cls(scan)
+        mode = app_config.mode
 
-        app_state_path = app_config.input_dir / "app_state.json"
+        if mode != Mode.RESET and app_config.app_state_path.is_file():
+            app_state.load(app_config.app_state_path)
 
-        if app_config.mode != Mode.RESET and app_state_path.is_file():
-            app_state.load(app_state_path)
+        else:
+            mode = Mode.RESET
 
-        return app_state
+        return app_state, mode
 
 
 class Mode(str, Enum):
@@ -439,6 +425,7 @@ class Mode(str, Enum):
 @dataclass(frozen=True)
 class AppConfig:
     input_dir: Path
+    app_state_path: Path
     output_dir: Path
     doi_output_name: str
     filament_center_lines_output_name: str
@@ -480,9 +467,7 @@ class CTidyStudio(QMainWindow):
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(self._app_config.autosave_interval_ms)
-        self._save_timer.timeout.connect(
-            partial(self.app_state.save, self._app_config.input_dir)
-        )
+        self._save_timer.timeout.connect(partial(self.app_state.save, self._app_config.app_state_path))
 
         self.app_state.view_changed.connect(self._save_timer.start)
         self.app_state.slice_pos_changed.connect(self._save_timer.start)
@@ -490,12 +475,8 @@ class CTidyStudio(QMainWindow):
 
     def _build_slice_views(self) -> None:
 
-        self.top_slice_view = SliceView(
-            self.app_state, Orientation(CardinalDirection.Z_, CardinalDirection.Y)
-        )
-        self.bot_slice_view = SliceView(
-            self.app_state, Orientation(CardinalDirection.X, CardinalDirection.Y)
-        )
+        self.top_slice_view = SliceView(self.app_state, Orientation(CardinalDirection.Z_, CardinalDirection.Y))
+        self.bot_slice_view = SliceView(self.app_state, Orientation(CardinalDirection.X, CardinalDirection.Y))
 
     def _build_ui(self) -> None:
         self.setWindowTitle("CTidyStudio")
@@ -580,9 +561,7 @@ class CTidyStudio(QMainWindow):
         return frame, layout
 
     @staticmethod
-    def _build_increment_control(
-        parent: QObject, binding: "IncrementControlBinding"
-    ) -> "IncrementControl":
+    def _build_increment_control(parent: QObject, binding: "IncrementControlBinding") -> "IncrementControl":
         control = IncrementControl(binding.type, parent)
 
         control.increment_requested.connect(binding.on_increment)
@@ -652,9 +631,7 @@ class CTidyStudio(QMainWindow):
 
         return frame
 
-    def _build_slice_pos_control(
-        self, direction: CardinalDirection, parent: QObject
-    ) -> QWidget:
+    def _build_slice_pos_control(self, direction: CardinalDirection, parent: QObject) -> QWidget:
         signal = self.app_state.slice_pos_changed
 
         container = QWidget(parent)
@@ -728,9 +705,7 @@ class CTidyStudio(QMainWindow):
         layout.addWidget(btn)
 
         layout.addSpacing(5)
-        self._sd_controls_container = self._build_sampling_domain_controls_container(
-            container
-        )
+        self._sd_controls_container = self._build_sampling_domain_controls_container(container)
         layout.addWidget(self._sd_controls_container)
 
         return container
@@ -741,23 +716,15 @@ class CTidyStudio(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        layout.addWidget(
-            self._build_sampling_domain_control(CardinalDirection.X, container)
-        )
+        layout.addWidget(self._build_sampling_domain_control(CardinalDirection.X, container))
         layout.addSpacing(5)
-        layout.addWidget(
-            self._build_sampling_domain_control(CardinalDirection.Y, container)
-        )
+        layout.addWidget(self._build_sampling_domain_control(CardinalDirection.Y, container))
         layout.addSpacing(5)
-        layout.addWidget(
-            self._build_sampling_domain_control(CardinalDirection.Z, container)
-        )
+        layout.addWidget(self._build_sampling_domain_control(CardinalDirection.Z, container))
 
         return container
 
-    def _build_sampling_domain_control(
-        self, direction: CardinalDirection, parent: QObject
-    ) -> QWidget:
+    def _build_sampling_domain_control(self, direction: CardinalDirection, parent: QObject) -> QWidget:
         signal = self.app_state.sd_changed
 
         container = QWidget(parent)
@@ -815,14 +782,10 @@ class CTidyStudio(QMainWindow):
 
         layout.addSpacing(5)
 
-        self._grid_type_control_container = self._build_grid_type_control_container(
-            container
-        )
+        self._grid_type_control_container = self._build_grid_type_control_container(container)
         layout.addWidget(self._grid_type_control_container)
 
-        self._grid_division_control_widget = self._build_grid_division_control_widget(
-            container
-        )
+        self._grid_division_control_widget = self._build_grid_division_control_widget(container)
         layout.addWidget(self._grid_division_control_widget)
 
         return container
@@ -889,9 +852,7 @@ class CTidyStudio(QMainWindow):
 
         layout.addWidget(grid_show_btn, 1)
 
-        self._grid_division_control_container = (
-            self._build_grid_division_control_container(container)
-        )
+        self._grid_division_control_container = self._build_grid_division_control_container(container)
         layout.addWidget(self._grid_division_control_container)
 
         return container
@@ -912,9 +873,7 @@ class CTidyStudio(QMainWindow):
                 partial(self.app_state.on_add_grid_divisions_request, direction),
                 partial(self.app_state.on_set_grid_divisions_request, direction),
                 self.app_state.sd_changed,
-                lambda direction=direction: self.app_state.sd.grid_divisions[
-                    direction.dir
-                ],
+                lambda direction=direction: self.app_state.sd.grid_divisions[direction.dir],
             )
 
             control = self._build_increment_control(container, binding)
@@ -966,9 +925,7 @@ class CTidyStudio(QMainWindow):
         )
         layout.addWidget(doi_show_btn)
 
-        self._doi_settings_full_container = self._build_doi_settings_full_container(
-            container
-        )
+        self._doi_settings_full_container = self._build_doi_settings_full_container(container)
         layout.addWidget(self._doi_settings_full_container)
 
         return container
@@ -987,9 +944,7 @@ class CTidyStudio(QMainWindow):
         btn.toggled.connect(self.app_state.on_switch_full_domain_request)
         layout.addWidget(btn, 1)
 
-        self._doi_settings_auto_container = self._build_doi_settings_auto_container(
-            container
-        )
+        self._doi_settings_auto_container = self._build_doi_settings_auto_container(container)
         layout.addWidget(self._doi_settings_auto_container, 2)
 
         return container
@@ -1068,32 +1023,20 @@ class CTidyStudio(QMainWindow):
         self._sd_controls_container.setEnabled(self.app_state.sd_show)
 
         self._grid_controls_container.setEnabled(self.app_state.sd_show)
-        self._grid_division_control_widget.setEnabled(
-            self.app_state.sd.grid_type != GridType.NONE
-        )
+        self._grid_division_control_widget.setEnabled(self.app_state.sd.grid_type != GridType.NONE)
         self._grid_division_control_container.setEnabled(self.app_state.grid_show)
-        self._doi_grid_division_z_increment_control.setEnabled(
-            self.app_state.sd.grid_type == GridType.BIDIR
-        )
+        self._doi_grid_division_z_increment_control.setEnabled(self.app_state.sd.grid_type == GridType.BIDIR)
 
-        self._doi_controls_container.setEnabled(
-            self.app_state.sd_show and self.app_state.sd.grid_type != GridType.NONE
-        )
+        self._doi_controls_container.setEnabled(self.app_state.sd_show and self.app_state.sd.grid_type != GridType.NONE)
         self._doi_settings_full_container.setEnabled(self.app_state.doi_show)
         self._doi_settings_auto_container.setEnabled(
-            not self.app_state.sd.full_domain
-            and self.app_state.sd.grid_type == GridType.UNIDIR
+            not self.app_state.sd.full_domain and self.app_state.sd.grid_type == GridType.UNIDIR
         )
-        self._doi_size_container.setEnabled(
-            self.app_state.doi_show and not self.app_state.sd.full_domain
-        )
+        self._doi_size_container.setEnabled(self.app_state.doi_show and not self.app_state.sd.full_domain)
         self._doi_size_z_increment_control.setEnabled(
-            not self.app_state.sd.grid_type == GridType.UNIDIR
-            or not self.app_state.sd.uni_auto_depth
+            not self.app_state.sd.grid_type == GridType.UNIDIR or not self.app_state.sd.uni_auto_depth
         )
-        self._doi_seed_container.setEnabled(
-            self.app_state.doi_show and not self.app_state.sd.full_domain
-        )
+        self._doi_seed_container.setEnabled(self.app_state.doi_show and not self.app_state.sd.full_domain)
 
 
 class SliceView(QGraphicsView):
@@ -1110,9 +1053,7 @@ class SliceView(QGraphicsView):
 
     @property
     def snapped_rotation(self):
-        return self._view_orientation.rotate(
-            self.app_state.current_scan_rotation_in_view_ref.inv()
-        ).rotation.inv()
+        return self._view_orientation.rotate(self.app_state.current_scan_rotation_in_view_ref.inv()).rotation.inv()
 
     def __init__(self, app_state: AppState, view_orientation: Orientation) -> None:
         super().__init__()
@@ -1146,12 +1087,8 @@ class SliceView(QGraphicsView):
         self._pixmap_item = QGraphicsPixmapItem()
         self.scene.addItem(self._pixmap_item)
 
-        self._rotate_cw_btn = self._create_overlay_button(
-            "⟳", lambda: self._on_rotation_btn_clicked(True)
-        )
-        self._rotate_ccw_btn = self._create_overlay_button(
-            "⟲", lambda: self._on_rotation_btn_clicked(False)
-        )
+        self._rotate_cw_btn = self._create_overlay_button("⟳", lambda: self._on_rotation_btn_clicked(True))
+        self._rotate_ccw_btn = self._create_overlay_button("⟲", lambda: self._on_rotation_btn_clicked(False))
 
         self._horizontal_slice_line = QGraphicsLineItem(parent=self._pixmap_item)
         self._vertical_slice_line = QGraphicsLineItem(parent=self._pixmap_item)
@@ -1217,9 +1154,7 @@ class SliceView(QGraphicsView):
         self._set_rotate_button_style(self._rotate_ccw_btn, font_size)
 
         # position
-        self._rotate_cw_btn.move(
-            horizontal_margin + size + horizontal_margin, vertical_margin
-        )
+        self._rotate_cw_btn.move(horizontal_margin + size + horizontal_margin, vertical_margin)
         self._rotate_ccw_btn.move(horizontal_margin, vertical_margin)
 
     def drawForeground(self, painter, rect) -> None:
@@ -1259,9 +1194,7 @@ class SliceView(QGraphicsView):
                 QPointF(horizontal_margin, y),
                 QPointF(horizontal_margin + bar_width, y),
                 QPointF(horizontal_margin + bar_width, y + bar_height),
-                QPointF(
-                    horizontal_margin + bar_width + bar_height * 2, y - bar_height / 2
-                ),
+                QPointF(horizontal_margin + bar_width + bar_height * 2, y - bar_height / 2),
                 QPointF(horizontal_margin + bar_width, y - 2 * bar_height),
                 QPointF(horizontal_margin + bar_width, y - bar_height),
                 QPointF(horizontal_margin, y - bar_height),
@@ -1276,19 +1209,13 @@ class SliceView(QGraphicsView):
             [
                 QPointF(vertical_margin, h - horizontal_margin),
                 QPointF(vertical_margin, h - horizontal_margin - bar_width),
-                QPointF(
-                    vertical_margin - bar_height, h - horizontal_margin - bar_width
-                ),
+                QPointF(vertical_margin - bar_height, h - horizontal_margin - bar_width),
                 QPointF(
                     vertical_margin + bar_height / 2,
                     h - horizontal_margin - bar_width - bar_height * 2,
                 ),
-                QPointF(
-                    vertical_margin + 2 * bar_height, h - horizontal_margin - bar_width
-                ),
-                QPointF(
-                    vertical_margin + bar_height, h - horizontal_margin - bar_width
-                ),
+                QPointF(vertical_margin + 2 * bar_height, h - horizontal_margin - bar_width),
+                QPointF(vertical_margin + bar_height, h - horizontal_margin - bar_width),
                 QPointF(vertical_margin + bar_height, h - horizontal_margin),
             ]
         )
@@ -1309,9 +1236,7 @@ class SliceView(QGraphicsView):
             painter.drawText(x, y, text)
 
         # Scale text
-        real_size = (
-            self.app_state.scan.voxel_size / 1000 * bar_width / self.transform().m11()
-        )
+        real_size = self.app_state.scan.voxel_size / 1000 * bar_width / self.transform().m11()
         text = _to_si(real_size)
 
         font = QFont()
@@ -1338,14 +1263,7 @@ class SliceView(QGraphicsView):
         )
 
         # Up axis text
-        text_x = (
-            vertical_margin
-            + (
-                bar_height
-                - fm.boundingRect(str(view_orientation_in_view_coord.up)).width()
-            )
-            / 2
-        )
+        text_x = vertical_margin + (bar_height - fm.boundingRect(str(view_orientation_in_view_coord.up)).width()) / 2
         text_y = h - horizontal_margin - bar_width - bar_height * 3
 
         draw_text(
@@ -1359,9 +1277,7 @@ class SliceView(QGraphicsView):
 
     def _update_view(self):
         rotated_data = self.app_state.scan.rotate_data(self.snapped_rotation)
-        rotated_slice_pos = self._global_to_view_coord(
-            self.app_state.slice_pos
-        ).int_coord
+        rotated_slice_pos = self._global_to_view_coord(self.app_state.slice_pos).int_coord
 
         image = np.flipud(rotated_data[:, :, rotated_slice_pos[2]].T)
 
@@ -1388,24 +1304,16 @@ class SliceView(QGraphicsView):
         self._fit_view(True)
 
     def _update_view_center(self):
-        pixmap_center = self._pixmap_item.mapFromScene(
-            self.mapToScene(self.viewport().rect().center())
-        )
-        self._view_center = self._view_to_global_coord(
-            self._pixmap_to_view_coord(pixmap_center)
-        )
+        pixmap_center = self._pixmap_item.mapFromScene(self.mapToScene(self.viewport().rect().center()))
+        self._view_center = self._view_to_global_coord(self._pixmap_to_view_coord(pixmap_center))
 
     def _center_view(self):
-        view_center_in_pixmap_coord = self._view_to_pixmap_coord(
-            self._global_to_view_coord(self._view_center)
-        )
+        view_center_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self._view_center))
 
         self.centerOn(view_center_in_pixmap_coord)
 
     def _global_to_view_coord(self, point: Point) -> Point:
-        return point.rotate_about(
-            self.snapped_rotation.rotation, self.app_state.scan.center
-        )
+        return point.rotate_about(self.snapped_rotation.rotation, self.app_state.scan.center)
 
     def _view_to_global_coord(self, point: Point) -> Point:
         return point.rotate_about(
@@ -1456,9 +1364,7 @@ class SliceView(QGraphicsView):
             self.app_state.current_scan_rotation_in_view_ref.inv()
         )
 
-        slice_pos_in_pixmap_coord = self._view_to_pixmap_coord(
-            self._global_to_view_coord(self.app_state.slice_pos)
-        )
+        slice_pos_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.slice_pos))
 
         self._horizontal_slice_line.setLine(
             0,
@@ -1466,9 +1372,7 @@ class SliceView(QGraphicsView):
             self._pixmap_item.boundingRect().width(),
             slice_pos_in_pixmap_coord.y(),
         )
-        self._horizontal_slice_line.setPen(
-            QPen(view_orientation_in_view_coord.up.associated_color, 1)
-        )
+        self._horizontal_slice_line.setPen(QPen(view_orientation_in_view_coord.up.associated_color, 1))
         self._horizontal_slice_line.setZValue(12)
 
         self._vertical_slice_line.setLine(
@@ -1477,24 +1381,17 @@ class SliceView(QGraphicsView):
             slice_pos_in_pixmap_coord.x(),
             self._pixmap_item.boundingRect().height(),
         )
-        self._vertical_slice_line.setPen(
-            QPen(view_orientation_in_view_coord.right.associated_color, 1)
-        )
+        self._vertical_slice_line.setPen(QPen(view_orientation_in_view_coord.right.associated_color, 1))
         self._vertical_slice_line.setZValue(12)
         self._update_line_thickness()
 
-        self._horizontal_slice_line.setVisible(
-            self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.up.dir]
-        )
+        self._horizontal_slice_line.setVisible(self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.up.dir])
         self._vertical_slice_line.setVisible(
             self.app_state.slice_pos_show_dir[view_orientation_in_view_coord.right.dir]
         )
 
     def _update_line_thickness(self) -> None:
-        min_viewport_dimension = (
-            min(self.viewport().height(), self.viewport().width())
-            / self.transform().m11()
-        )
+        min_viewport_dimension = min(self.viewport().height(), self.viewport().width()) / self.transform().m11()
         line_thickness = min_viewport_dimension * self.SLICE_LINE_RATIO
 
         for item in self._pixmap_item.childItems():
@@ -1511,16 +1408,10 @@ class SliceView(QGraphicsView):
                 )
 
     def _update_sd_outline(self) -> None:
-        min_point_pixmap_coord = self._view_to_pixmap_coord(
-            self._global_to_view_coord(self.app_state.sd.min_point)
-        )
-        max_point_pixmap_coord = self._view_to_pixmap_coord(
-            self._global_to_view_coord(self.app_state.sd.max_point)
-        )
+        min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.min_point))
+        max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.max_point))
 
-        self._rectangle_sd_outline.setRect(
-            QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized()
-        )
+        self._rectangle_sd_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
         self._rectangle_sd_outline.setPen(QPen(SD_COLOR, 1))
         self._update_line_thickness()
 
@@ -1539,12 +1430,8 @@ class SliceView(QGraphicsView):
 
             if self.app_state.grid_show:
                 for start, end in self.app_state.sd.grid_lines_by_extremities():
-                    start_in_pixmap_coord = self._view_to_pixmap_coord(
-                        self._global_to_view_coord(start)
-                    )
-                    end_in_pixmap_coord = self._view_to_pixmap_coord(
-                        self._global_to_view_coord(end)
-                    )
+                    start_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(start))
+                    end_in_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(end))
 
                     if start_in_pixmap_coord == end_in_pixmap_coord:
                         obj = QGraphicsEllipseItem(
@@ -1558,9 +1445,7 @@ class SliceView(QGraphicsView):
                         obj.setBrush(QBrush(GRID_COLOR))
 
                     else:
-                        obj = QGraphicsLineItem(
-                            QLineF(start_in_pixmap_coord, end_in_pixmap_coord), parent
-                        )
+                        obj = QGraphicsLineItem(QLineF(start_in_pixmap_coord, end_in_pixmap_coord), parent)
                         obj.setPen(QPen(GRID_COLOR, 1))
 
                     obj.setZValue(12)
@@ -1571,16 +1456,10 @@ class SliceView(QGraphicsView):
         return update_grid_lines
 
     def _update_doi_outline(self) -> None:
-        min_point_pixmap_coord = self._view_to_pixmap_coord(
-            self._global_to_view_coord(self.app_state.sd.doi.min_point)
-        )
-        max_point_pixmap_coord = self._view_to_pixmap_coord(
-            self._global_to_view_coord(self.app_state.sd.doi.max_point)
-        )
+        min_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.doi.min_point))
+        max_point_pixmap_coord = self._view_to_pixmap_coord(self._global_to_view_coord(self.app_state.sd.doi.max_point))
 
-        self._rectangle_doi_outline.setRect(
-            QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized()
-        )
+        self._rectangle_doi_outline.setRect(QRectF(min_point_pixmap_coord, max_point_pixmap_coord).normalized())
         self._rectangle_doi_outline.setPen(QPen(DOI_COLOR, 1))
         self._update_line_thickness()
 
@@ -1649,12 +1528,8 @@ class SliceView(QGraphicsView):
             delta = event.pos() - self._pan_start
             self._pan_start = event.pos()
 
-            self.horizontalScrollBar().setValue(
-                self.horizontalScrollBar().value() - delta.x()
-            )
-            self.verticalScrollBar().setValue(
-                self.verticalScrollBar().value() - delta.y()
-            )
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
 
             event.accept()
             self.viewport().update()
@@ -1790,19 +1665,24 @@ def run_ctidy_studio(
     console.print("[green]✔ Tif stack loaded[/green]")
 
     with console.status("Building AppState..."):
-        app_state = AppState.build(scan, app_config)
+        app_state, mode = AppState.build(scan, app_config)
         if seed_override is not None:
             app_state.sd.set_doi_seed(seed_override)
 
     console.print("[green]✔ AppState built[/green]")
 
-    if app_config.mode != Mode.SILENT:
+    if app_config.mode != mode:
+        console.print(
+            f"[bold yellow]⚠ Warning:[/bold yellow] "
+            f"App state file not found: {app_config.app_state_path}.\n"
+            f"Starting in {mode} mode instead of {app_config.mode} mode"
+        )
+
+    if mode != Mode.SILENT:
         app = QApplication.instance() or QApplication(sys.argv)
         app.setStyleSheet(STYTE_SHEET)
 
-        with Live(
-            Text.from_markup("Opening CTidy Studio..."), console=console, transient=True
-        ):
+        with Live(Text.from_markup("Opening CTidy Studio..."), console=console, transient=True):
             window = CTidyStudio(app_state, app_config)
             window.show()
             exit_code = app.exec()
