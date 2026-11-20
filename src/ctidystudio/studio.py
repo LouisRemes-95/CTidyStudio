@@ -224,8 +224,7 @@ class AppState(QObject):
             "doi_show": self._doi_show,
         }
 
-    def save(self, dir: Path) -> None:
-        path = dir / "app_state.json"
+    def save(self, path: Path) -> None:
         with path.open("w", encoding="utf-8") as file:
             json.dump(self._to_dict(), file, indent=4)
 
@@ -419,15 +418,17 @@ class AppState(QObject):
         self.sd_changed.emit()
 
     @classmethod
-    def build(cls, scan: Scan, app_config: "AppConfig") -> "AppState":
+    def build(cls, scan: Scan, app_config: "AppConfig") -> tuple["AppState", "Mode"]:
         app_state = cls(scan)
+        mode = app_config.mode
 
-        app_state_path = app_config.input_dir / "app_state.json"
+        if mode != Mode.RESET and app_config.app_state_path.is_file():
+            app_state.load(app_config.app_state_path)
 
-        if app_config.mode != Mode.RESET and app_state_path.is_file():
-            app_state.load(app_state_path)
+        else:
+            mode = Mode.RESET
 
-        return app_state
+        return app_state, mode
 
 
 class Mode(str, Enum):
@@ -439,6 +440,7 @@ class Mode(str, Enum):
 @dataclass(frozen=True)
 class AppConfig:
     input_dir: Path
+    app_state_path: Path
     output_dir: Path
     doi_output_name: str
     filament_center_lines_output_name: str
@@ -481,7 +483,7 @@ class CTidyStudio(QMainWindow):
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(self._app_config.autosave_interval_ms)
         self._save_timer.timeout.connect(
-            partial(self.app_state.save, self._app_config.input_dir)
+            partial(self.app_state.save, self._app_config.app_state_path)
         )
 
         self.app_state.view_changed.connect(self._save_timer.start)
@@ -1790,13 +1792,20 @@ def run_ctidy_studio(
     console.print("[green]✔ Tif stack loaded[/green]")
 
     with console.status("Building AppState..."):
-        app_state = AppState.build(scan, app_config)
+        app_state, mode = AppState.build(scan, app_config)
         if seed_override is not None:
             app_state.sd.set_doi_seed(seed_override)
 
     console.print("[green]✔ AppState built[/green]")
 
-    if app_config.mode != Mode.SILENT:
+    if app_config.mode != mode:
+        console.print(
+            f"[bold yellow]⚠ Warning:[/bold yellow] "
+            f"App state file not found: {app_config.app_state_path}.\n"
+            f"Starting in {mode} mode instead of {app_config.mode} mode"
+        )
+
+    if mode != Mode.SILENT:
         app = QApplication.instance() or QApplication(sys.argv)
         app.setStyleSheet(STYTE_SHEET)
 

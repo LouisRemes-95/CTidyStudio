@@ -24,12 +24,19 @@ def build_parser() -> RichArgumentParser:
         prog="CTidyStudio",
         description="Interface to cut and mark a CT scan",
         formatter_class=RichHelpFormatter,
+        allow_abbrev=False,
     )
 
     parser.add_argument(
         "input_dir",
         type=Path,
         help="Path to directory containing .tif stack and optional .json cache file",
+    )
+    parser.add_argument(
+        "-as",
+        "--app-state-path",
+        type=Path,
+        help="Path to an app state in a .json file",
     )
     parser.add_argument(
         "-o",
@@ -71,7 +78,7 @@ def build_parser() -> RichArgumentParser:
         "--minimum-cluster-volume",
         type=float,
         default=0.0,
-        help=r"Minimum voxel cluster size when exporting \[mm³]",
+        help=r"Minimum voxel cluster size when exporting in \[mm³]",
     )
     parser.add_argument(
         "--seed-override",
@@ -88,6 +95,13 @@ def resolve_input_dir(path: Path) -> Path:
     if not path.exists() or not path.is_dir():
         raise UserError("input_dir must be an existing directory")
     return path
+
+
+def resolve_app_state_path(path: Path | None, fallback_dir: Path) -> Path:
+    path = (path or fallback_dir / "app_state").resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    return path.with_name(path.name.split(".")[0] + ".json")
 
 
 def resolve_output_dir(input_dir: Path, out: Path | None) -> Path:
@@ -115,9 +129,11 @@ def main() -> int:
 
     try:
         input_dir = resolve_input_dir(args.input_dir)
+        app_state_path = resolve_app_state_path(args.app_state_path, input_dir)
         output_dir = resolve_output_dir(input_dir, args.output_dir)
         app_config = AppConfig(
             input_dir,
+            app_state_path,
             output_dir,
             args.doi_output,
             args.filament_center_lines_output,
